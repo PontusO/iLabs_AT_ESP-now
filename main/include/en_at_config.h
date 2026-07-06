@@ -1,0 +1,152 @@
+/*
+ * en_at_config.h
+ *
+ * Global build-time configuration for the ESP-NOW AT interpreter.
+ *
+ * Everything hardware-related (UART port, pins, baud rate, flow control)
+ * and every tunable (buffer sizes, timeouts, URC options) lives in this
+ * single file so a board port only ever touches one header.
+ *
+ * Targets: ESP32-C6 and ESP32-C3 (ESP-IDF v5.x).
+ */
+
+#pragma once
+
+#include "sdkconfig.h"
+
+/* ------------------------------------------------------------------ */
+/*  Firmware identity                                                  */
+/* ------------------------------------------------------------------ */
+
+#define EN_FW_VERSION           "1.0.0"
+
+/* ------------------------------------------------------------------ */
+/*  AT transport: UART                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * UART port used for the AT command link to the host MCU.
+ *
+ * NOTE: UART0 is normally the ESP-IDF console/log UART. Keeping the AT
+ * link on UART1 leaves boot messages and esp_log output on UART0 where
+ * they cannot corrupt the AT stream. If you must run AT on UART0,
+ * disable console logging (CONFIG_LOG_DEFAULT_LEVEL_NONE) as well.
+ */
+#define EN_UART_PORT            UART_NUM_1
+
+/* Baud rate of the AT link. */
+#define EN_UART_BAUD            115200
+
+/*
+ * Hardware flow control mode for the AT UART.
+ *   EN_UART_FLOWCTRL_NONE     - no flow control (3-wire: TX/RX/GND)
+ *   EN_UART_FLOWCTRL_RTS      - RTS only  (ESP32 signals host to pause)
+ *   EN_UART_FLOWCTRL_CTS      - CTS only  (host signals ESP32 to pause)
+ *   EN_UART_FLOWCTRL_CTS_RTS  - full RTS/CTS flow control
+ */
+#define EN_UART_FLOWCTRL_NONE     0
+#define EN_UART_FLOWCTRL_RTS      1
+#define EN_UART_FLOWCTRL_CTS      2
+#define EN_UART_FLOWCTRL_CTS_RTS  3
+
+#define EN_UART_FLOWCTRL        EN_UART_FLOWCTRL_NONE
+
+/*
+ * RX FIFO threshold at which RTS is de-asserted when RTS flow control
+ * is enabled (bytes, 0..127 on C3/C6).
+ */
+#define EN_UART_RTS_THRESH      100
+
+/* ------------------------------------------------------------------ */
+/*  AT UART pin assignment (per target)                                */
+/*                                                                     */
+/*  All four pins are routed through the GPIO matrix, so any free      */
+/*  GPIO works. Use -1 (EN_PIN_NC) for RTS/CTS when flow control is    */
+/*  disabled or when a signal is not wired.                            */
+/* ------------------------------------------------------------------ */
+
+#define EN_PIN_NC               (-1)
+
+#if CONFIG_IDF_TARGET_ESP32C6
+#define EN_UART_TX_PIN          5
+#define EN_UART_RX_PIN          4
+#define EN_UART_RTS_PIN         6
+#define EN_UART_CTS_PIN         7
+#elif CONFIG_IDF_TARGET_ESP32C3
+#define EN_UART_TX_PIN          7
+#define EN_UART_RX_PIN          6
+#define EN_UART_RTS_PIN         5
+#define EN_UART_CTS_PIN         4
+#else
+/* Fallback for other targets - adjust as required. */
+#define EN_UART_TX_PIN          5
+#define EN_UART_RX_PIN          4
+#define EN_UART_RTS_PIN         EN_PIN_NC
+#define EN_UART_CTS_PIN         EN_PIN_NC
+#endif
+
+/* ------------------------------------------------------------------ */
+/*  Buffers & limits                                                   */
+/* ------------------------------------------------------------------ */
+
+/* UART driver ring buffer sizes (bytes). */
+#define EN_UART_RX_BUF_SIZE     4096
+#define EN_UART_TX_BUF_SIZE     4096
+
+/*
+ * Maximum accepted AT command line length (bytes, including the
+ * "AT+..." prefix). Must be large enough for the largest hex-encoded
+ * AT+ENFRAGSEND payload: 2 * EN_FRAG_MAX_TOTAL + ~64 bytes overhead.
+ */
+#define EN_AT_LINE_MAX          (2 * EN_FRAG_MAX_TOTAL + 64)
+
+/*
+ * Maximum total payload accepted by AT+ENFRAGSEND and by the receive
+ * side reassembler (bytes). Bounded by 32 fragments of
+ * EN_FRAG_CHUNK bytes each (see en_core.c).
+ */
+#define EN_FRAG_MAX_TOTAL       4096
+
+/* Number of concurrent fragmented-receive reassembly slots. */
+#define EN_FRAG_RX_SLOTS        4
+
+/* Depth of the receive event queue between WiFi task and RX worker. */
+#define EN_RX_QUEUE_LEN         16
+
+/* ------------------------------------------------------------------ */
+/*  Timeouts                                                           */
+/* ------------------------------------------------------------------ */
+
+/* Max wait for the ESP-NOW send callback per frame (ms). */
+#define EN_SEND_CB_TIMEOUT_MS   1000
+
+/* AT+ENPEERCHECK ping/pong round-trip timeout (ms). */
+#define EN_PING_TIMEOUT_MS      500
+
+/* Fragment reassembly timeout - stale slots are dropped (ms). */
+#define EN_FRAG_TIMEOUT_MS      3000
+
+/* AT+ENSENDRAW: max wait for the host to deliver the raw bytes (ms). */
+#define EN_RAW_DATA_TIMEOUT_MS  10000
+
+/* ------------------------------------------------------------------ */
+/*  Behaviour options                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Command echo on boot (change at runtime with ATE0 / ATE1). */
+#define EN_AT_ECHO_DEFAULT      0
+
+/* Emit +ENFRAGRECV progress URCs (both send and receive side). */
+#define EN_URC_FRAG_PROGRESS    1
+
+/* Emit "+ENREADY" once on boot so the host can sync to the slave. */
+#define EN_URC_READY_ON_BOOT    1
+
+/* ------------------------------------------------------------------ */
+/*  Task tuning                                                        */
+/* ------------------------------------------------------------------ */
+
+#define EN_PARSER_TASK_STACK    6144
+#define EN_PARSER_TASK_PRIO     10
+#define EN_RX_TASK_STACK        4096
+#define EN_RX_TASK_PRIO         11

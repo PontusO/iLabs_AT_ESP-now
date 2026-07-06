@@ -1,0 +1,11 @@
+# ESP-NOW AT interpreter - shared defaults for ESP32-C3 / ESP32-C6
+
+# 1 ms tick for usable RTT measurement in AT+ENPEERCHECK
+CONFIG_FREERTOS_HZ=1000
+
+# ESP-NOW encrypted peers (hardware limit is 17 minus soft-AP use)
+CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM=7
+
+# Keep boot output modest on the console UART; the AT link is on its
+# own UART (see main/include/en_at_config.h)
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
