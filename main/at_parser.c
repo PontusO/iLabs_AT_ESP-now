@@ -205,6 +205,44 @@ static int cmd_rate(at_type_t type, char *args)
     return en_set_rate((int)idx);
 }
 
+/* Standard rates only, capped at 921600 baud. */
+static const int s_baud_rates[] = {
+    1200, 2400, 4800, 9600, 19200, 38400, 57600,
+    115200, 230400, 460800, 921600,
+};
+
+static int cmd_baud(at_type_t type, char *args)
+{
+    if (type == AT_QUERY) {
+        at_uart_write_line("+ENBAUD:%d", at_uart_get_baud());
+        return AT_R_OK;
+    }
+    if (type != AT_SET) {
+        return AT_R_ERROR;
+    }
+
+    unsigned baud;
+    if (!parse_uint(args, &baud)) {
+        return AT_R_ERROR;
+    }
+    bool valid = false;
+    for (size_t i = 0; i < sizeof(s_baud_rates) / sizeof(s_baud_rates[0]); i++) {
+        if ((unsigned)s_baud_rates[i] == baud) {
+            valid = true;
+            break;
+        }
+    }
+    if (!valid) {
+        return AT_R_ERROR;
+    }
+
+    /* Acknowledge at the current rate; the switch drains TX first so
+     * the OK still goes out before the rate changes. */
+    resp_ok();
+    at_uart_set_baud((int)baud);
+    return AT_R_DONE;
+}
+
 static int cmd_mac(at_type_t type, char *args)
 {
     (void)args;
@@ -538,6 +576,7 @@ static const at_cmd_t s_cmds[] = {
     { "ENVER",       cmd_ver       },
     { "ENCHANNEL",   cmd_channel   },
     { "ENRATE",      cmd_rate      },
+    { "ENBAUD",      cmd_baud      },
     { "ENMAC",       cmd_mac       },
     { "ENADDPEER",   cmd_addpeer   },
     { "ENDELPEER",   cmd_delpeer   },

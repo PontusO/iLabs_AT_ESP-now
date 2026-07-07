@@ -18,6 +18,7 @@
 static const char *TAG = "at_uart";
 
 static SemaphoreHandle_t s_tx_mutex;
+static int s_baud = EN_UART_BAUD;
 
 static uart_hw_flowcontrol_t flowctrl_mode(void)
 {
@@ -132,4 +133,30 @@ int at_uart_read(uint8_t *buf, size_t len, TickType_t ticks_to_wait)
 {
     int n = uart_read_bytes(EN_UART_PORT, buf, len, ticks_to_wait);
     return (n < 0) ? 0 : n;
+}
+
+int at_uart_get_baud(void)
+{
+    return s_baud;
+}
+
+int at_uart_set_baud(int baud)
+{
+    /* Hold the TX mutex so no writer can queue more output between the
+     * drain and the rate switch. */
+    xSemaphoreTake(s_tx_mutex, portMAX_DELAY);
+    uart_wait_tx_done(EN_UART_PORT, pdMS_TO_TICKS(1000));
+
+    esp_err_t err = uart_set_baudrate(EN_UART_PORT, (uint32_t)baud);
+    if (err == ESP_OK) {
+        s_baud = baud;
+    }
+    xSemaphoreGive(s_tx_mutex);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "baud change to %d failed: %s", baud, esp_err_to_name(err));
+        return -1;
+    }
+    ESP_LOGI(TAG, "AT UART baud now %d", baud);
+    return 0;
 }

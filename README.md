@@ -54,7 +54,7 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | Macro | Default | Meaning |
 |---|---|---|
 | `EN_UART_PORT` | `UART_NUM_1` | UART used for the AT link (keep the console on UART0) |
-| `EN_UART_BAUD` | `115200` | AT link baud rate |
+| `EN_UART_BAUD` | `115200` | AT link baud rate at boot (change at runtime with `AT+ENBAUD`) |
 | `EN_UART_FLOWCTRL` | `EN_UART_FLOWCTRL_NONE` | `NONE`, `RTS`, `CTS` or `CTS_RTS` |
 | `EN_UART_RTS_THRESH` | `100` | RX FIFO level that de-asserts RTS |
 | `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 5/4, C3: 7/6 | AT UART data pins |
@@ -163,6 +163,7 @@ Conventions (spec section 1):
 | `AT+ENVER` | `AT+ENVER?` | `+ENVER:<fw_ver>,<espnow_ver>` |
 | `AT+ENCHANNEL` | `AT+ENCHANNEL?` / `=<ch>` | get/set WiFi channel |
 | `AT+ENRATE` | `AT+ENRATE=<rate_idx>` | set PHY rate (see below) |
+| `AT+ENBAUD` | `AT+ENBAUD?` / `=<baud>` | get/set AT link baud rate (standard rates ≤ 921600) |
 | `AT+ENMAC` | `AT+ENMAC?` | this device's own STA MAC (works before INIT) |
 | `AT+ENADDPEER` | `=<mac>,<ch>,<encrypt:0\|1>[,<lmk32hex>]` | register peer (max 20) |
 | `AT+ENDELPEER` | `=<mac>` | remove peer |
@@ -199,6 +200,27 @@ Conventions (spec section 1):
 | 6 | Encryption key invalid/missing |
 | 7 | Fragment reassembly timeout |
 | 8 | Unknown/unsupported command (version-skew detection) |
+
+### Changing the link baud rate (`AT+ENBAUD`)
+
+`AT+ENBAUD=<baud>` accepts only the standard rates
+`1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800,
+921600`; anything else returns `ERROR` with no change. The `OK` is
+transmitted **at the old rate** (the TX FIFO is drained first), then the
+UART switches — so the host sequence is:
+
+```
+AT+ENBAUD=921600
+OK                  <- still received at the old rate
+                    <- host now reconfigures its own UART to 921600
+AT
+OK                  <- confirms the new rate works
+```
+
+The setting is runtime-only: after a reset the link comes back up at
+`EN_UART_BAUD` (115200 by default) and emits `+ENREADY` there, so a host
+using a faster rate should fall back to the default rate whenever it sees
+the link go quiet after a slave reset.
 
 ### PHY rates (`AT+ENRATE=<rate_idx>`)
 

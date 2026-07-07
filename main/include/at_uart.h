@@ -27,3 +27,13 @@ void at_uart_write_line(const char *fmt, ...) __attribute__((format(printf, 1, 2
  * Returns the number of bytes read (0 on timeout).
  */
 int at_uart_read(uint8_t *buf, size_t len, TickType_t ticks_to_wait);
+
+/* Currently configured baud rate of the AT link. */
+int at_uart_get_baud(void);
+
+/*
+ * Switch the AT link baud rate. Drains the TX FIFO first so any
+ * response already queued (e.g. the "OK" acknowledging the change)
+ * still leaves at the old rate. Returns 0 on success, -1 on failure.
+ */
+int at_uart_set_baud(int baud);
