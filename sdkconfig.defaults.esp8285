@@ -1,0 +1,21 @@
+# ESP-NOW AT interpreter - defaults for ESP8285 (ESP8266_RTOS_SDK v3.4).
+#
+# This file is self-contained: the 8266 SDK build system accepts only a
+# single defaults file, so build with
+#   idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.defaults.esp8285 build
+
+# 1 ms tick for usable RTT measurement in AT+ENPEERCHECK
+CONFIG_FREERTOS_HZ=1000
+
+# ESP8285: 2 MB flash on-die, which only supports DOUT mode
+CONFIG_ESPTOOLPY_FLASHSIZE_2MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DOUT=y
+
+# The AT link must use UART0 (UART1 is TX-only on this chip), so move
+# the console/log output to UART1 (TX on GPIO2)
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_1=y
+CONFIG_ESP_CONSOLE_UART_NUM=1
+
+# Keep boot output modest
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

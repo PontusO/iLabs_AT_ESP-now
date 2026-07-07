@@ -29,10 +29,11 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include "en_at_config.h"
+
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_now.h"
 #include "esp_timer.h"
@@ -40,7 +41,12 @@
 #include "esp_idf_version.h"
 #include "nvs_flash.h"
 
-#include "en_at_config.h"
+#if EN_TARGET_ESP8266
+#include "esp_system.h"     /* esp_read_mac lives here on the 8266 SDK */
+#else
+#include "esp_mac.h"
+#endif
+
 #include "at_uart.h"
 #include "en_core.h"
 
@@ -133,6 +139,13 @@ static void mac_to_str(const uint8_t mac[6], char out[13])
 
 static void note_rssi(const uint8_t mac[6], int rssi)
 {
+#if EN_TARGET_ESP8266
+    /* The 8266 SDK's ESP-NOW receive callback carries no RSSI, so the
+     * tracker stays invalid and AT+ENRSSI reports ERROR. */
+    (void)mac;
+    (void)rssi;
+    return;
+#else
     s_rssi_last  = rssi;
     s_rssi_valid = true;
 
@@ -152,6 +165,7 @@ static void note_rssi(const uint8_t mac[6], int rssi)
         memcpy(s_peer_rssi[free_slot].mac, mac, 6);
         s_peer_rssi[free_slot].rssi = rssi;
     }
+#endif
 }
 
 /* Emit +ENRECV:<src_mac>,<len>,<rssi>,<payload_hex> */
@@ -196,16 +210,16 @@ static void send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
     }
 }
 
-static void recv_cb(const esp_now_recv_info_t *info,
-                    const uint8_t *data, int len)
+static void enqueue_rx(const uint8_t *src_mac, int rssi,
+                       const uint8_t *data, int len)
 {
     if (len <= 0 || !s_rx_queue) {
         return;
     }
 
     rx_item_t item;
-    memcpy(item.mac, info->src_addr, 6);
-    item.rssi = info->rx_ctrl ? info->rx_ctrl->rssi : 0;
+    memcpy(item.mac, src_mac, 6);
+    item.rssi = rssi;
     item.len  = (uint16_t)len;
     item.data = malloc(len);
     if (!item.data) {
@@ -219,6 +233,21 @@ static void recv_cb(const esp_now_recv_info_t *info,
         s_stats.rx_drop++;
     }
 }
+
+#if EN_TARGET_ESP8266
+/* 8266 SDK callback: source MAC only - no des_addr, no RSSI. */
+static void recv_cb(const uint8_t *mac_addr, const uint8_t *data, int len)
+{
+    enqueue_rx(mac_addr, 0, data, len);
+}
+#else
+static void recv_cb(const esp_now_recv_info_t *info,
+                    const uint8_t *data, int len)
+{
+    enqueue_rx(info->src_addr, info->rx_ctrl ? info->rx_ctrl->rssi : 0,
+               data, len);
+}
+#endif
 
 /* ---- fragment reassembly (RX worker task context) ----------------- */
 
@@ -399,7 +428,7 @@ static void rx_task(void *arg)
 
 /* ---- PHY rate ------------------------------------------------------ */
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if !EN_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 static wifi_phy_mode_t phymode_for_rate(int rate)
 {
     if (rate <= 0x07) {
@@ -439,7 +468,11 @@ void en_core_boot(void)
     }
 
     esp_err_t err = nvs_flash_init();
+#if EN_TARGET_ESP8266
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
+#else
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+#endif
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
     } else {
@@ -575,6 +608,11 @@ int en_get_channel(void)
 
 int en_set_rate(int rate_idx)
 {
+#if EN_TARGET_ESP8266
+    /* The 8266 SDK exposes no ESP-NOW rate API at all. */
+    (void)rate_idx;
+    return EN_ERR_UNSUPPORTED;
+#else
     if (!s_init) {
         return EN_ERR_NOT_INIT;
     }
@@ -612,6 +650,7 @@ int en_set_rate(int rate_idx)
     s_rate = rate_idx;
     return EN_OK;
 #endif
+#endif /* EN_TARGET_ESP8266 */
 }
 
 void en_get_mac(uint8_t mac[6])
@@ -673,7 +712,7 @@ int en_add_peer(const uint8_t mac[6], int channel, bool encrypt,
         return EN_ERR_GENERIC;
     }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if !EN_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     apply_rate_to_peer(mac);
 #endif
     return EN_OK;

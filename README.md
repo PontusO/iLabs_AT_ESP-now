@@ -5,7 +5,9 @@ diagnostics over a UART link, for use as an ESP32 slave co-processor next to a
 host MCU (RP2040 / RP2350 / nRF52840) — iLabs Challenger+ platform.
 
 Implements the **AT+EN Command Set Specification v0.1** on ESP-IDF for
-**ESP32-C6** and **ESP32-C3**.
+**ESP32-C6** and **ESP32-C3**, and on ESP8266_RTOS_SDK for the
+**ESP8285** (2 MB embedded flash) — see
+[ESP8285 target notes](#esp8285-target-notes) for that chip's limitations.
 
 ```
 Host MCU (RP2040/nRF52840)          ESP32-C3/C6 slave
@@ -26,13 +28,15 @@ Host MCU (RP2040/nRF52840)          ESP32-C3/C6 slave
   control (none / RTS / CTS / RTS+CTS) — all in **one global config file**.
 - URC-driven receive path (`+ENRECV`) with per-fragment progress URCs.
 - Encrypted peers via ESP-NOW PMK/LMK.
-- Runs on ESP32-C6 and ESP32-C3 (any ESP-IDF v5.x target should work).
+- Runs on ESP32-C6 and ESP32-C3 (any ESP-IDF v5.x target should work),
+  plus ESP8285/ESP8266 via ESP8266_RTOS_SDK v3.4.
 
 ## Repository layout
 
 ```
 CMakeLists.txt              ESP-IDF project file
 sdkconfig.defaults          shared build defaults (C3 + C6)
+sdkconfig.defaults.esp8285  self-contained defaults for ESP8285 (2 MB, DOUT)
 main/
   main.c                    boot sequence
   at_uart.c                 UART transport (thread-safe TX, flow control)
@@ -65,9 +69,11 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | `EN_URC_FRAG_PROGRESS` | `1` | emit `+ENFRAGRECV` progress URCs |
 | `EN_URC_READY_ON_BOOT` | `1` | emit `+ENREADY` once after reset |
 
-All four UART pins go through the GPIO matrix, so any free GPIO may be used
-on both targets. Pin defaults are per-target (`CONFIG_IDF_TARGET_*` blocks in
-the same file).
+On ESP32-C3/C6 all four UART pins go through the GPIO matrix, so any free
+GPIO may be used. Pin defaults are per-target (`CONFIG_IDF_TARGET_*` blocks
+in the same file). On the ESP8285 the UART0 pins are fixed by the chip's IO
+mux (TX=GPIO1, RX=GPIO3, RTS=GPIO15, CTS=GPIO13); the only pin option there
+is `EN_UART_SWAP_IO`, which moves UART0 to GPIO15(TX)/GPIO13(RX).
 
 > **Note:** the AT link defaults to UART1 so that ESP-IDF boot/log output on
 > UART0 can never corrupt the AT stream. If you move the AT link to UART0,
@@ -96,6 +102,28 @@ idf.py -p /dev/ttyUSB0 flash monitor
 
 `idf.py set-target` regenerates `sdkconfig` from `sdkconfig.defaults`; switch
 targets at any time the same way.
+
+### Building for ESP8285 (ESP8266_RTOS_SDK)
+
+The ESP8285 is an ESP8266 with 2 MB flash on-die; it is **not** supported by
+ESP-IDF. Install
+[ESP8266_RTOS_SDK v3.4](https://github.com/espressif/ESP8266_RTOS_SDK)
+and its xtensa-lx106 toolchain, then build the same source tree with the
+ESP8285 defaults file (2 MB flash, DOUT mode — mandatory for the on-die
+flash — and console moved to UART1):
+
+```sh
+export IDF_PATH=~/esp/ESP8266_RTOS_SDK      # adjust
+. $IDF_PATH/export.sh
+
+rm -f sdkconfig                              # discard an ESP32 config
+idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.defaults.esp8285 build
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+The 8266 SDK accepts only a single defaults file, which is why
+`sdkconfig.defaults.esp8285` is self-contained rather than layered on top of
+`sdkconfig.defaults`.
 
 ## Using it
 
@@ -185,6 +213,7 @@ Conventions (spec section 1):
 
 The rate applies to all current and future peers. **Long-range (LR) rates
 work only between Espressif chips** and both ends must enable them.
+`AT+ENRATE` is not available on the ESP8285 (returns `+ENERR:8`).
 
 ## Protocol notes (read before integrating)
 
@@ -236,6 +265,28 @@ choice: it keeps key storage a host-side security decision (spec section 7).
 - A receiver that stops getting fragments drops the transfer silently after
   `EN_FRAG_TIMEOUT_MS` (counts as `rx_drop` in `AT+ENSTATS?`). A host that
   saw some `+ENFRAGRECV` but no final `+ENRECV` should apply its own timeout.
+
+### ESP8285 target notes
+
+The AT surface is identical across all three chips, with these differences
+imposed by the ESP8285 hardware and the 8266 SDK:
+
+- **AT link is UART0** (the chip's UART1 is TX-only), on fixed pins:
+  TX=GPIO1, RX=GPIO3. Hardware flow control is supported but pin-fixed too:
+  RTS=GPIO15, CTS=GPIO13. Console/log output goes to UART1 (TX on GPIO2)
+  via `sdkconfig.defaults.esp8285`.
+- **Boot ROM chatter:** the mask ROM prints on GPIO1 at 74880 baud during
+  every reset — the host must discard input until `+ENREADY`. To keep the
+  AT link completely clean, set `EN_UART_SWAP_IO 1` in `en_at_config.h`
+  to move UART0 to GPIO15(TX)/GPIO13(RX); this sacrifices hardware flow
+  control (same pins).
+- **No RSSI:** the 8266 SDK's receive callback does not expose RSSI.
+  `+ENRECV` reports the RSSI field as `0`, and `AT+ENRSSI` returns `ERROR`.
+- **No PHY rate control:** `AT+ENRATE` returns `+ENERR:8` (unsupported).
+- Peer limits differ slightly: 20 total, but at most 6 encrypted peers
+  (ESP8266 hardware limit).
+- `AT+ENVER?` reports the 8266 SDK's ESP-NOW version, so hosts can key
+  feature availability off `AT+ENVER?`/`+ENERR:8` as designed.
 
 ### Coexistence warning
 
