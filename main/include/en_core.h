@@ -90,6 +90,14 @@ size_t en_max_payload(void);
 /* Largest payload accepted by en_frag_send(). */
 size_t en_max_frag_payload(void);
 
+/*
+ * Broadcast a discovery probe and collect responses for timeout_ms,
+ * then call cb once per unique responder (rssi is 0 on ESP8285).
+ * Blocking; peers running this firmware answer automatically when
+ * built with EN_DISCOVERY_RESPOND.
+ */
+int  en_discover(int timeout_ms, void (*cb)(const uint8_t mac[6], int rssi));
+
 /* Diagnostics */
 int  en_peer_check(const uint8_t mac[6], int *rtt_ms);
 void en_get_stats(en_stats_t *out);

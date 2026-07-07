@@ -553,6 +553,28 @@ static int cmd_state(at_type_t type, char *args)
     return AT_R_OK;
 }
 
+static void discover_line_cb(const uint8_t mac[6], int rssi)
+{
+    char macs[13];
+    mac_str(mac, macs);
+    at_uart_write_line("+ENDISCOVER:%s,%d", macs, rssi);
+}
+
+static int cmd_discover(at_type_t type, char *args)
+{
+    int timeout_ms = EN_DISCOVER_TIMEOUT_MS;
+    if (type == AT_SET) {
+        unsigned t;
+        if (!parse_uint(args, &t) || t < 50 || t > 30000) {
+            return AT_R_ERROR;
+        }
+        timeout_ms = (int)t;
+    } else if (type != AT_EXEC) {
+        return AT_R_ERROR;
+    }
+    return en_discover(timeout_ms, discover_line_cb);
+}
+
 static int cmd_peercheck(at_type_t type, char *args)
 {
     uint8_t mac[6];
@@ -591,6 +613,7 @@ static const at_cmd_t s_cmds[] = {
     { "ENSTATS",     cmd_stats     },
     { "ENSTATE",     cmd_state     },
     { "ENPEERCHECK", cmd_peercheck },
+    { "ENDISCOVER",  cmd_discover  },
 };
 
 static void handle_result(int r)

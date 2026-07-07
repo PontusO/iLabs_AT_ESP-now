@@ -14,6 +14,8 @@
  *   FRAG (0x02): [msg_id][idx][total][len_hi][len_lo][chunk ...]
  *   PING (0x03): [token]
  *   PONG (0x04): [token]
+ *   DISC (0x05): [token]      discovery probe, always broadcast
+ *   DRSP (0x06): [token]      discovery response, unicast to the prober
  *
  * Frames that do not start with the magic (e.g. from a third-party
  * ESP-NOW node) fall through as-is and are reported verbatim via
@@ -42,9 +44,10 @@
 #include "nvs_flash.h"
 
 #if EN_TARGET_ESP8266
-#include "esp_system.h"     /* esp_read_mac lives here on the 8266 SDK */
+#include "esp_system.h"     /* esp_read_mac + esp_random on the 8266 SDK */
 #else
 #include "esp_mac.h"
+#include "esp_random.h"
 #endif
 
 #include "at_uart.h"
@@ -59,6 +62,8 @@ static const char *TAG = "en_core";
 #define EN_T_FRAG       0x02
 #define EN_T_PING       0x03
 #define EN_T_PONG       0x04
+#define EN_T_DISC       0x05
+#define EN_T_DISCRESP   0x06
 
 #define EN_HDR_LEN      2
 #define EN_FRAG_HDR_LEN 7                                   /* magic..len_lo */
@@ -93,6 +98,16 @@ static volatile bool       s_send_ok;
 static SemaphoreHandle_t   s_pong_sem;
 static volatile uint8_t    s_ping_token;
 static uint8_t             s_ping_mac[6];
+
+/* discovery scan state (written by RX task, read by en_discover) */
+typedef struct {
+    uint8_t mac[6];
+    int     rssi;
+} disc_entry_t;
+static disc_entry_t        s_disc[EN_DISCOVER_MAX];
+static volatile int        s_disc_count;
+static volatile bool       s_disc_active;
+static volatile uint8_t    s_disc_token;
 
 /* last-frame RSSI, global and per peer */
 static bool                s_rssi_valid;
@@ -364,6 +379,59 @@ static void handle_frag_frame(const rx_item_t *it)
     }
 }
 
+/* ---- discovery (RX worker task context) ---------------------------- */
+
+#if EN_DISCOVERY_RESPOND
+/*
+ * Answer a discovery probe. The prober is usually not in our peer
+ * table, so it is added transiently for the unicast reply and removed
+ * again afterwards - AT+ENLISTPEER stays unaffected on the responder.
+ */
+static void discovery_respond(const uint8_t mac[6], uint8_t token)
+{
+    bool was_peer = esp_now_is_peer_exist(mac);
+    if (!was_peer) {
+        esp_now_peer_info_t peer = {0};
+        memcpy(peer.peer_addr, mac, 6);
+        peer.channel = 0;               /* current channel */
+        peer.ifidx   = WIFI_IF_STA;
+        peer.encrypt = false;
+        if (esp_now_add_peer(&peer) != ESP_OK) {
+            return;                     /* peer table full - stay silent */
+        }
+    }
+
+#if EN_DISCOVER_JITTER_MS > 0
+    /* Spread fleet responses out so they don't all collide on air. */
+    vTaskDelay(pdMS_TO_TICKS(esp_random() % (EN_DISCOVER_JITTER_MS + 1)));
+#endif
+
+    uint8_t resp[3] = {EN_MAGIC, EN_T_DISCRESP, token};
+    esp_now_send(mac, resp, sizeof(resp));
+
+    if (!was_peer) {
+        /* Give the frame time to leave before dropping the peer entry. */
+        vTaskDelay(pdMS_TO_TICKS(20));
+        esp_now_del_peer(mac);
+    }
+}
+#endif /* EN_DISCOVERY_RESPOND */
+
+static void discovery_collect(const uint8_t mac[6], int rssi)
+{
+    int n = s_disc_count;
+    for (int i = 0; i < n; i++) {
+        if (memcmp(s_disc[i].mac, mac, 6) == 0) {
+            return;                     /* duplicate response */
+        }
+    }
+    if (n < EN_DISCOVER_MAX) {
+        memcpy(s_disc[n].mac, mac, 6);
+        s_disc[n].rssi = rssi;
+        s_disc_count = n + 1;
+    }
+}
+
 /* ---- RX worker task ------------------------------------------------ */
 
 static void rx_task(void *arg)
@@ -406,6 +474,23 @@ static void rx_task(void *arg)
                     memcmp(it.mac, s_ping_mac, 6) == 0) {
                     note_rssi(it.mac, it.rssi);
                     xSemaphoreGive(s_pong_sem);
+                }
+                break;
+
+            case EN_T_DISC:
+                note_rssi(it.mac, it.rssi);
+#if EN_DISCOVERY_RESPOND
+                if (it.len >= EN_HDR_LEN + 1 && s_init) {
+                    discovery_respond(it.mac, p[2]);
+                }
+#endif
+                break;
+
+            case EN_T_DISCRESP:
+                note_rssi(it.mac, it.rssi);
+                if (it.len >= EN_HDR_LEN + 1 && s_disc_active &&
+                    p[2] == s_disc_token) {
+                    discovery_collect(it.mac, it.rssi);
                 }
                 break;
 
@@ -851,18 +936,24 @@ int en_send_start(const uint8_t mac[6], const uint8_t *data, size_t len)
     return data_send_start(mac, data, len);
 }
 
+/* ESP-NOW requires even the broadcast address to be in the peer table;
+ * register it on first use. */
+static int ensure_bcast_peer(void)
+{
+    if (esp_now_is_peer_exist(BCAST_MAC)) {
+        return EN_OK;
+    }
+    return en_add_peer(BCAST_MAC, 0, false, NULL);
+}
+
 int en_bcast_start(const uint8_t *data, size_t len)
 {
     if (!s_init) {
         return EN_ERR_NOT_INIT;
     }
-    /* ESP-NOW requires even the broadcast address to be in the peer
-     * table; register it on first use. */
-    if (esp_now_is_peer_exist(BCAST_MAC) == false) {
-        int r = en_add_peer(BCAST_MAC, 0, false, NULL);
-        if (r != EN_OK) {
-            return r;
-        }
+    int r = ensure_bcast_peer();
+    if (r != EN_OK) {
+        return r;
     }
     return data_send_start(BCAST_MAC, data, len);
 }
@@ -922,6 +1013,40 @@ int en_frag_send(const uint8_t mac[6], const uint8_t *data, size_t total_len)
     }
 
     s_state = EN_STATE_IDLE;
+    return EN_OK;
+}
+
+int en_discover(int timeout_ms, void (*cb)(const uint8_t mac[6], int rssi))
+{
+    if (!s_init) {
+        return EN_ERR_NOT_INIT;
+    }
+    int r = ensure_bcast_peer();
+    if (r != EN_OK) {
+        return r;
+    }
+
+    s_disc_count  = 0;
+    s_disc_token++;
+    s_disc_active = true;
+
+    uint8_t probe[3] = {EN_MAGIC, EN_T_DISC, s_disc_token};
+    r = ll_send_start(BCAST_MAC, probe, sizeof(probe));
+    if (r == EN_OK) {
+        r = ll_send_finish(false);      /* control frame - not counted */
+    }
+    if (r != EN_OK) {
+        s_disc_active = false;
+        return EN_ERR_UNREACHABLE;
+    }
+
+    /* Collection window: the RX task fills s_disc as responses land. */
+    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    s_disc_active = false;
+
+    for (int i = 0; i < s_disc_count; i++) {
+        cb(s_disc[i].mac, s_disc[i].rssi);
+    }
     return EN_OK;
 }
 

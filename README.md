@@ -24,6 +24,9 @@ Host MCU (RP2040/nRF52840)          ESP32-C3/C6 slave
 - Full `AT+EN` command set: lifecycle, peer management, keys (PMK/LMK),
   single-frame send, raw binary passthrough, fragmented send/reassembly,
   broadcast, RSSI, statistics, state and peer liveness probe.
+- One-command device discovery (`AT+ENDISCOVER`): a central unit scans the
+  channel and gets the MAC (and RSSI) of every listening board — responders
+  answer in firmware, no host involvement.
 - Configurable UART transport: port, pins, baud rate and hardware flow
   control (none / RTS / CTS / RTS+CTS) — all in **one global config file**.
 - URC-driven receive path (`+ENRECV`) with per-fragment progress URCs.
@@ -65,6 +68,10 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | `EN_PING_TIMEOUT_MS` | `500` | `AT+ENPEERCHECK` round-trip timeout |
 | `EN_FRAG_TIMEOUT_MS` | `3000` | reassembly timeout (stale transfers dropped) |
 | `EN_RAW_DATA_TIMEOUT_MS` | `10000` | `AT+ENSENDRAW` wait for raw bytes |
+| `EN_DISCOVER_TIMEOUT_MS` | `1000` | default `AT+ENDISCOVER` collection window |
+| `EN_DISCOVERY_RESPOND` | `1` | answer discovery scans from other nodes (0 = invisible) |
+| `EN_DISCOVER_MAX` | `32` | max unique devices reported per scan |
+| `EN_DISCOVER_JITTER_MS` | `50` | random response delay to avoid fleet collisions |
 | `EN_AT_ECHO_DEFAULT` | `0` | command echo at boot (`ATE0`/`ATE1` at runtime) |
 | `EN_URC_FRAG_PROGRESS` | `1` | emit `+ENFRAGRECV` progress URCs |
 | `EN_URC_READY_ON_BOOT` | `1` | emit `+ENREADY` once after reset |
@@ -178,6 +185,7 @@ Conventions (spec section 1):
 | `AT+ENSTATS` | `AT+ENSTATS?` | `+ENSTATS:<tx_ok>,<tx_fail>,<rx_ok>,<rx_drop>` |
 | `AT+ENSTATE` | `AT+ENSTATE?` | `0` uninit, `1` idle, `2` sending, `3` error |
 | `AT+ENPEERCHECK` | `=<mac>` | liveness ping: `+ENPEERCHECK:<mac>,<rtt_ms>` |
+| `AT+ENDISCOVER` | `AT+ENDISCOVER` / `=<timeout_ms>` | scan for devices: one `+ENDISCOVER:<mac>,<rssi>` line per responder |
 
 ### URCs (unsolicited result codes)
 
@@ -200,6 +208,47 @@ Conventions (spec section 1):
 | 6 | Encryption key invalid/missing |
 | 7 | Fragment reassembly timeout |
 | 8 | Unknown/unsupported command (version-skew detection) |
+
+### Device discovery (`AT+ENDISCOVER`)
+
+`AT+ENDISCOVER` (default window `EN_DISCOVER_TIMEOUT_MS`, 1000 ms) or
+`AT+ENDISCOVER=<timeout_ms>` (50–30000) broadcasts a discovery probe and
+collects answers for the given window, then reports every unique responder:
+
+```
+AT+ENDISCOVER=1000
++ENDISCOVER:AABBCCDDEE02,-42
++ENDISCOVER:AABBCCDDEE03,-55
++ENDISCOVER:AABBCCDDEE07,-71
+OK
+```
+
+- Any board running this firmware answers **automatically in firmware** —
+  the responder's host MCU is not involved and sees nothing. Build with
+  `EN_DISCOVERY_RESPOND 0` to make a device invisible to scans.
+- Responders wait a random 0–`EN_DISCOVER_JITTER_MS` (50 ms default) before
+  answering so a large fleet doesn't collide; up to `EN_DISCOVER_MAX` (32)
+  unique devices are reported per scan. The RSSI is measured by the
+  scanning device, so it reads `0` when the central is an ESP8285 (no RSSI
+  there) — responder chips don't matter.
+- Answering a probe momentarily adds the prober as a transient peer entry
+  on the responder (removed right after the reply) — `AT+ENLISTPEER?` is
+  unaffected.
+- Discovery only covers the **current channel**; to sweep, step
+  `AT+ENCHANNEL=<n>` through 1–13 and scan each.
+- **Security note:** probes and responses are unauthenticated broadcast
+  traffic — anyone on the channel can enumerate devices. Treat discovery
+  as a commissioning/diagnostic tool; pair with PMK/LMK for real traffic.
+
+**Interop with native ESP-IDF nodes:** devices not running this interpreter
+ignore probes (they see them as an unknown 3-byte broadcast payload) and
+therefore don't appear in scans. To make a native node discoverable,
+implement this in its receive callback:
+
+1. On receiving broadcast payload `EA 05 <token>`: add the sender as an
+   unencrypted peer (if unknown), wait a random 0–50 ms, and unicast
+   `EA 06 <token>` back to it.
+2. That's all — the token is echoed verbatim, no state is kept.
 
 ### Changing the link baud rate (`AT+ENBAUD`)
 
@@ -242,8 +291,8 @@ work only between Espressif chips** and both ends must enable them.
 ### Over-the-air framing
 
 Every frame this firmware transmits carries a 2-byte prefix
-(`0xEA` magic + frame type) so that data, fragments and the liveness probe
-can be told apart on the receive side. Consequences:
+(`0xEA` magic + frame type) so that data, fragments, the liveness probe and
+discovery frames can be told apart on the receive side. Consequences:
 
 - Max `AT+ENSEND` / `AT+ENSENDRAW` / `AT+ENBCAST` payload is **248 bytes**
   (250-byte ESP-NOW limit minus the 2-byte header). Fragments carry a 7-byte
@@ -449,6 +498,36 @@ If a fragment is lost and retry/reassembly ultimately fails, Board A gets
 `+ENSENDFAIL` instead of `+ENSENDOK`, and Board B never emits the final
 `+ENRECV` — host should treat "some FRAGRECV but no final RECV" as a hung
 transfer and time out on its own.
+
+### 8.6 Central unit scanning for available devices (firmware extension)
+
+A gateway/central board discovers every listening board on the channel and
+pairs with the ones it wants — no MACs exchanged out-of-band. The sensor
+boards' hosts do nothing: their slaves answer the scan in firmware.
+
+**Central:**
+```
+AT+ENINIT=6
+OK
+
+AT+ENDISCOVER=1000
++ENDISCOVER:AABBCCDDEE02,-42
++ENDISCOVER:AABBCCDDEE03,-55
+OK
+
+AT+ENADDPEER=AABBCCDDEE02,6,0
+OK
+AT+ENPEERCHECK=AABBCCDDEE02
++ENPEERCHECK:AABBCCDDEE02,5
+OK
+```
+
+The central's host now holds the device list (sorted by RSSI if useful) and
+can proceed with normal pairing — including switching to encrypted peers via
+`AT+ENPMK`/`AT+ENADDPEER=...,1` once it has decided which devices belong to
+it. Since discovery is unauthenticated, a production flow should verify
+discovered devices at the application layer (e.g. a signed hello exchanged
+over `AT+ENSEND`) before trusting them.
 
 ---
 

@@ -167,6 +167,9 @@
 /* AT+ENSENDRAW: max wait for the host to deliver the raw bytes (ms). */
 #define EN_RAW_DATA_TIMEOUT_MS  10000
 
+/* AT+ENDISCOVER: response collection window when no argument given (ms). */
+#define EN_DISCOVER_TIMEOUT_MS  1000
+
 /* ------------------------------------------------------------------ */
 /*  Behaviour options                                                  */
 /* ------------------------------------------------------------------ */
@@ -179,6 +182,21 @@
 
 /* Emit "+ENREADY" once on boot so the host can sync to the slave. */
 #define EN_URC_READY_ON_BOOT    1
+
+/*
+ * Answer AT+ENDISCOVER scans from other nodes automatically (no host
+ * involvement). Set to 0 to make this device invisible to scans.
+ */
+#define EN_DISCOVERY_RESPOND    1
+
+/* Max unique devices collected per AT+ENDISCOVER scan. */
+#define EN_DISCOVER_MAX         32
+
+/*
+ * Random 0..N ms delay before answering a discovery request, so a large
+ * fleet does not reply in the same instant and collide. 0 disables.
+ */
+#define EN_DISCOVER_JITTER_MS   50
 
 /* ------------------------------------------------------------------ */
 /*  Task tuning                                                        */
