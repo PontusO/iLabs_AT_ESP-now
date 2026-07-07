@@ -184,8 +184,9 @@
 #define EN_URC_READY_ON_BOOT    1
 
 /*
- * Answer AT+ENDISCOVER scans from other nodes automatically (no host
- * involvement). Set to 0 to make this device invisible to scans.
+ * Boot default for answering AT+ENDISCOVER scans from other nodes
+ * (no host involvement). The host can toggle this at runtime with
+ * AT+ENDISCOVERABLE=0|1; a reset returns to this value.
  */
 #define EN_DISCOVERY_RESPOND    1
 

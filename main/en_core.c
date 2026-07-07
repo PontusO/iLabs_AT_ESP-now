@@ -108,6 +108,7 @@ static disc_entry_t        s_disc[EN_DISCOVER_MAX];
 static volatile int        s_disc_count;
 static volatile bool       s_disc_active;
 static volatile uint8_t    s_disc_token;
+static volatile bool       s_discoverable = (EN_DISCOVERY_RESPOND != 0);
 
 /* last-frame RSSI, global and per peer */
 static bool                s_rssi_valid;
@@ -381,7 +382,6 @@ static void handle_frag_frame(const rx_item_t *it)
 
 /* ---- discovery (RX worker task context) ---------------------------- */
 
-#if EN_DISCOVERY_RESPOND
 /*
  * Answer a discovery probe. The prober is usually not in our peer
  * table, so it is added transiently for the unicast reply and removed
@@ -415,7 +415,6 @@ static void discovery_respond(const uint8_t mac[6], uint8_t token)
         esp_now_del_peer(mac);
     }
 }
-#endif /* EN_DISCOVERY_RESPOND */
 
 static void discovery_collect(const uint8_t mac[6], int rssi)
 {
@@ -479,11 +478,9 @@ static void rx_task(void *arg)
 
             case EN_T_DISC:
                 note_rssi(it.mac, it.rssi);
-#if EN_DISCOVERY_RESPOND
-                if (it.len >= EN_HDR_LEN + 1 && s_init) {
+                if (it.len >= EN_HDR_LEN + 1 && s_init && s_discoverable) {
                     discovery_respond(it.mac, p[2]);
                 }
-#endif
                 break;
 
             case EN_T_DISCRESP:
@@ -1048,6 +1045,16 @@ int en_discover(int timeout_ms, void (*cb)(const uint8_t mac[6], int rssi))
         cb(s_disc[i].mac, s_disc[i].rssi);
     }
     return EN_OK;
+}
+
+void en_set_discoverable(bool on)
+{
+    s_discoverable = on;
+}
+
+bool en_get_discoverable(void)
+{
+    return s_discoverable;
 }
 
 /* ---- diagnostics ------------------------------------------------------- */

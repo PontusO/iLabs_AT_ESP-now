@@ -69,7 +69,7 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | `EN_FRAG_TIMEOUT_MS` | `3000` | reassembly timeout (stale transfers dropped) |
 | `EN_RAW_DATA_TIMEOUT_MS` | `10000` | `AT+ENSENDRAW` wait for raw bytes |
 | `EN_DISCOVER_TIMEOUT_MS` | `1000` | default `AT+ENDISCOVER` collection window |
-| `EN_DISCOVERY_RESPOND` | `1` | answer discovery scans from other nodes (0 = invisible) |
+| `EN_DISCOVERY_RESPOND` | `1` | boot default for answering scans (runtime: `AT+ENDISCOVERABLE`) |
 | `EN_DISCOVER_MAX` | `32` | max unique devices reported per scan |
 | `EN_DISCOVER_JITTER_MS` | `50` | random response delay to avoid fleet collisions |
 | `EN_AT_ECHO_DEFAULT` | `0` | command echo at boot (`ATE0`/`ATE1` at runtime) |
@@ -186,6 +186,7 @@ Conventions (spec section 1):
 | `AT+ENSTATE` | `AT+ENSTATE?` | `0` uninit, `1` idle, `2` sending, `3` error |
 | `AT+ENPEERCHECK` | `=<mac>` | liveness ping: `+ENPEERCHECK:<mac>,<rtt_ms>` |
 | `AT+ENDISCOVER` | `AT+ENDISCOVER` / `=<timeout_ms>` | scan for devices: one `+ENDISCOVER:<mac>,<rssi>` line per responder |
+| `AT+ENDISCOVERABLE` | `AT+ENDISCOVERABLE?` / `=<0\|1>` | opt this device out of / into answering scans |
 
 ### URCs (unsolicited result codes)
 
@@ -224,8 +225,15 @@ OK
 ```
 
 - Any board running this firmware answers **automatically in firmware** —
-  the responder's host MCU is not involved and sees nothing. Build with
-  `EN_DISCOVERY_RESPOND 0` to make a device invisible to scans.
+  the responder's host MCU is not involved and sees nothing.
+- A device can opt out of scans: `AT+ENDISCOVERABLE=0` stops it answering
+  probes (`=1` re-enables, `?` queries). The boot default is the
+  `EN_DISCOVERY_RESPOND` build option, and a reset restores it — set the
+  default to `0` and have the host issue `AT+ENDISCOVERABLE=1` only during
+  a commissioning window (e.g. after a pairing-button press) for the
+  classic "discoverable for 60 seconds" pattern. Note this only silences
+  the discovery reply; the device's ordinary traffic remains visible to
+  anyone sniffing the channel.
 - Responders wait a random 0–`EN_DISCOVER_JITTER_MS` (50 ms default) before
   answering so a large fleet doesn't collide; up to `EN_DISCOVER_MAX` (32)
   unique devices are reported per scan. The RSSI is measured by the

@@ -98,6 +98,13 @@ size_t en_max_frag_payload(void);
  */
 int  en_discover(int timeout_ms, void (*cb)(const uint8_t mac[6], int rssi));
 
+/*
+ * Whether this device answers discovery probes from other nodes.
+ * Boots as EN_DISCOVERY_RESPOND; runtime-only (reset restores default).
+ */
+void en_set_discoverable(bool on);
+bool en_get_discoverable(void);
+
 /* Diagnostics */
 int  en_peer_check(const uint8_t mac[6], int *rtt_ms);
 void en_get_stats(en_stats_t *out);

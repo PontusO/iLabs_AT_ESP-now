@@ -575,6 +575,23 @@ static int cmd_discover(at_type_t type, char *args)
     return en_discover(timeout_ms, discover_line_cb);
 }
 
+static int cmd_discoverable(at_type_t type, char *args)
+{
+    if (type == AT_QUERY) {
+        at_uart_write_line("+ENDISCOVERABLE:%d", en_get_discoverable() ? 1 : 0);
+        return AT_R_OK;
+    }
+    if (type == AT_SET) {
+        unsigned on;
+        if (!parse_uint(args, &on) || on > 1) {
+            return AT_R_ERROR;
+        }
+        en_set_discoverable(on == 1);
+        return AT_R_OK;
+    }
+    return AT_R_ERROR;
+}
+
 static int cmd_peercheck(at_type_t type, char *args)
 {
     uint8_t mac[6];
@@ -613,6 +630,7 @@ static const at_cmd_t s_cmds[] = {
     { "ENSTATS",     cmd_stats     },
     { "ENSTATE",     cmd_state     },
     { "ENPEERCHECK", cmd_peercheck },
+    { "ENDISCOVERABLE", cmd_discoverable },
     { "ENDISCOVER",  cmd_discover  },
 };
 
