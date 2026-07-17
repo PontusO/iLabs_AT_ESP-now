@@ -55,7 +55,8 @@
 #define EN_UART_BAUD            115200
 
 /*
- * Hardware flow control mode for the AT UART.
+ * Hardware flow control mode for the AT UART at boot (change at runtime
+ * with AT+ENFLOW).
  *   EN_UART_FLOWCTRL_NONE     - no flow control (3-wire: TX/RX/GND)
  *   EN_UART_FLOWCTRL_RTS      - RTS only  (ESP32 signals host to pause)
  *   EN_UART_FLOWCTRL_CTS      - CTS only  (host signals ESP32 to pause)

@@ -37,3 +37,16 @@ int at_uart_get_baud(void);
  * still leaves at the old rate. Returns 0 on success, -1 on failure.
  */
 int at_uart_set_baud(int baud);
+
+/* Currently configured hardware flow control mode (EN_UART_FLOWCTRL_*). */
+int at_uart_get_flowctrl(void);
+
+/*
+ * Switch the AT link hardware flow control at runtime. `mode` is one of
+ * the EN_UART_FLOWCTRL_* values in en_at_config.h. On ESP32-C3/C6 the
+ * RTS/CTS GPIOs are routed on demand (they need not have been enabled at
+ * build time). Drains the TX FIFO first so a response already queued
+ * (e.g. the "OK" acknowledging the change) still leaves before flow
+ * control engages. Returns 0 on success, -1 on failure.
+ */
+int at_uart_set_flowctrl(int mode);

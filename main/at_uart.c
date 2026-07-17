@@ -19,10 +19,11 @@ static const char *TAG = "at_uart";
 
 static SemaphoreHandle_t s_tx_mutex;
 static int s_baud = EN_UART_BAUD;
+static int s_flowctrl = EN_UART_FLOWCTRL;
 
-static uart_hw_flowcontrol_t flowctrl_mode(void)
+static uart_hw_flowcontrol_t hw_flowctrl_for(int mode)
 {
-    switch (EN_UART_FLOWCTRL) {
+    switch (mode) {
     case EN_UART_FLOWCTRL_RTS:     return UART_HW_FLOWCTRL_RTS;
     case EN_UART_FLOWCTRL_CTS:     return UART_HW_FLOWCTRL_CTS;
     case EN_UART_FLOWCTRL_CTS_RTS: return UART_HW_FLOWCTRL_CTS_RTS;
@@ -42,7 +43,7 @@ void at_uart_init(void)
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
         .stop_bits  = UART_STOP_BITS_1,
-        .flow_ctrl  = flowctrl_mode(),
+        .flow_ctrl  = hw_flowctrl_for(s_flowctrl),
         .rx_flow_ctrl_thresh = EN_UART_RTS_THRESH,
     };
 
@@ -62,7 +63,7 @@ void at_uart_init(void)
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
         .stop_bits  = UART_STOP_BITS_1,
-        .flow_ctrl  = flowctrl_mode(),
+        .flow_ctrl  = hw_flowctrl_for(s_flowctrl),
         .rx_flow_ctrl_thresh = EN_UART_RTS_THRESH,
         .source_clk = UART_SCLK_DEFAULT,
     };
@@ -158,5 +159,55 @@ int at_uart_set_baud(int baud)
         return -1;
     }
     ESP_LOGI(TAG, "AT UART baud now %d", baud);
+    return 0;
+}
+
+int at_uart_get_flowctrl(void)
+{
+    return s_flowctrl;
+}
+
+int at_uart_set_flowctrl(int mode)
+{
+    if (mode < EN_UART_FLOWCTRL_NONE || mode > EN_UART_FLOWCTRL_CTS_RTS) {
+        return -1;
+    }
+
+    /* Hold the TX mutex and drain first so the "OK" already queued at the
+     * old state leaves before flow control engages (enabling CTS would
+     * otherwise gate this device's transmitter on the host's readiness). */
+    xSemaphoreTake(s_tx_mutex, portMAX_DELAY);
+    uart_wait_tx_done(EN_UART_PORT, pdMS_TO_TICKS(1000));
+
+    esp_err_t err = ESP_OK;
+
+#if !EN_TARGET_ESP8266
+    /* Route the RTS/CTS GPIOs for the requested mode (or leave them alone
+     * when the corresponding signal is unused). TX/RX stay put. On C3/C6
+     * all four pins go through the GPIO matrix, so this works even when
+     * flow control was disabled at build time. */
+    int rts = (mode == EN_UART_FLOWCTRL_RTS || mode == EN_UART_FLOWCTRL_CTS_RTS)
+                  ? EN_UART_RTS_PIN : UART_PIN_NO_CHANGE;
+    int cts = (mode == EN_UART_FLOWCTRL_CTS || mode == EN_UART_FLOWCTRL_CTS_RTS)
+                  ? EN_UART_CTS_PIN : UART_PIN_NO_CHANGE;
+    err = uart_set_pin(EN_UART_PORT, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE,
+                       rts, cts);
+#endif
+
+    if (err == ESP_OK) {
+        err = uart_set_hw_flow_ctrl(EN_UART_PORT, hw_flowctrl_for(mode),
+                                    EN_UART_RTS_THRESH);
+    }
+    if (err == ESP_OK) {
+        s_flowctrl = mode;
+    }
+    xSemaphoreGive(s_tx_mutex);
+
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "flow control change to %d failed: %s",
+                 mode, esp_err_to_name(err));
+        return -1;
+    }
+    ESP_LOGI(TAG, "AT UART flow control now %d", mode);
     return 0;
 }

@@ -179,6 +179,7 @@ Conventions (spec section 1):
 | `AT+ENCHANNEL` | `AT+ENCHANNEL?` / `=<ch>` | get/set WiFi channel |
 | `AT+ENRATE` | `AT+ENRATE=<rate_idx>` | set PHY rate (see below) |
 | `AT+ENBAUD` | `AT+ENBAUD?` / `=<baud>` | get/set AT link baud rate (standard rates ≤ 921600) |
+| `AT+ENFLOW` | `AT+ENFLOW?` / `=<mode>` | get/set AT link HW flow control: `0` none, `1` RTS, `2` CTS, `3` RTS+CTS |
 | `AT+ENMAC` | `AT+ENMAC?` | this device's own STA MAC (works before INIT) |
 | `AT+ENADDPEER` | `=<mac>,<ch>,<encrypt:0\|1>[,<lmk32hex>]` | register peer (max 20) |
 | `AT+ENDELPEER` | `=<mac>` | remove peer |
@@ -286,6 +287,44 @@ The setting is runtime-only: after a reset the link comes back up at
 `EN_UART_BAUD` (115200 by default) and emits `+ENREADY` there, so a host
 using a faster rate should fall back to the default rate whenever it sees
 the link go quiet after a slave reset.
+
+### Hardware flow control (`AT+ENFLOW`)
+
+`AT+ENFLOW=<mode>` turns UART RTS/CTS flow control on or off at runtime,
+`AT+ENFLOW?` reports the current mode:
+
+| mode | meaning |
+|---|---|
+| `0` | none (3-wire TX/RX/GND) |
+| `1` | RTS only — the slave pauses the host when its RX FIFO fills |
+| `2` | CTS only — the slave pauses its TX when the host de-asserts CTS |
+| `3` | RTS+CTS — full bidirectional flow control |
+
+This matters for **high-throughput bulk transfers**: when the host
+(RP2040/RP2350) is busy and can't drain the UART in time, RTS lets the
+slave hold off instead of overrunning the host; CTS lets the host throttle
+the slave the same way. Enable it (`3`) before streaming large
+`AT+ENSENDRAW` / fragmented payloads, and wire RTS/CTS as well as TX/RX.
+
+On ESP32-C3/C6 the RTS/CTS pins (`EN_UART_RTS_PIN` / `EN_UART_CTS_PIN`,
+routed through the GPIO matrix) are assigned on demand, so flow control can
+be switched on even if the build defaulted to `EN_UART_FLOWCTRL_NONE`. Like
+`AT+ENBAUD`, the `OK` is transmitted **at the old setting** (TX drained
+first) and the change takes effect immediately after — so the host should
+enable its own flow control only after it sees the `OK`:
+
+```
+AT+ENFLOW=3
+OK                  <- still sent without flow control
+                    <- host now enables RTS/CTS on its own UART
+AT
+OK                  <- confirms the link works with flow control
+```
+
+The setting is runtime-only and resets to `EN_UART_FLOWCTRL` (build
+default) after a slave reset. On the ESP8285 flow control is pin-fixed
+(RTS=GPIO15, CTS=GPIO13) and unavailable when `EN_UART_SWAP_IO` is set —
+`AT+ENFLOW=<non-zero>` then returns `ERROR`.
 
 ### PHY rates (`AT+ENRATE=<rate_idx>`)
 

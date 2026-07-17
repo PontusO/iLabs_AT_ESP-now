@@ -243,6 +243,38 @@ static int cmd_baud(at_type_t type, char *args)
     return AT_R_DONE;
 }
 
+static int cmd_flow(at_type_t type, char *args)
+{
+    if (type == AT_QUERY) {
+        at_uart_write_line("+ENFLOW:%d", at_uart_get_flowctrl());
+        return AT_R_OK;
+    }
+    if (type != AT_SET) {
+        return AT_R_ERROR;
+    }
+
+    unsigned mode;
+    if (!parse_uint(args, &mode) || mode > EN_UART_FLOWCTRL_CTS_RTS) {
+        return AT_R_ERROR;
+    }
+
+#if EN_TARGET_ESP8266 && EN_UART_SWAP_IO
+    /* The UART0 IO swap steals the RTS/CTS GPIOs for TX/RX, so hardware
+     * flow control cannot be enabled on this build (see en_at_config.h). */
+    if (mode != EN_UART_FLOWCTRL_NONE) {
+        return AT_R_ERROR;
+    }
+#endif
+
+    /* Acknowledge at the current flow-control state, then switch: the
+     * switch drains TX first so the OK still leaves even when enabling
+     * CTS would otherwise gate this device's transmitter (spec 1: the
+     * host reconfigures its own side after seeing OK). */
+    resp_ok();
+    at_uart_set_flowctrl((int)mode);
+    return AT_R_DONE;
+}
+
 static int cmd_mac(at_type_t type, char *args)
 {
     (void)args;
@@ -616,6 +648,7 @@ static const at_cmd_t s_cmds[] = {
     { "ENCHANNEL",   cmd_channel   },
     { "ENRATE",      cmd_rate      },
     { "ENBAUD",      cmd_baud      },
+    { "ENFLOW",      cmd_flow      },
     { "ENMAC",       cmd_mac       },
     { "ENADDPEER",   cmd_addpeer   },
     { "ENDELPEER",   cmd_delpeer   },
