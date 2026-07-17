@@ -180,6 +180,41 @@ static int cmd_ver(at_type_t type, char *args)
     return AT_R_OK;
 }
 
+/*
+ * LTE-modem-style identity commands (3GPP TS 27.007). Each is an
+ * execution command answering with a bare identity string then OK, the
+ * way a cellular modem reports +CGMI/+CGMM/+CGMR.
+ */
+static int cmd_cgmi(at_type_t type, char *args)
+{
+    (void)args;
+    if (type != AT_EXEC) {
+        return AT_R_ERROR;
+    }
+    at_uart_write_line("%s", EN_MANUFACTURER);
+    return AT_R_OK;
+}
+
+static int cmd_cgmm(at_type_t type, char *args)
+{
+    (void)args;
+    if (type != AT_EXEC) {
+        return AT_R_ERROR;
+    }
+    at_uart_write_line("%s", EN_MODEL);
+    return AT_R_OK;
+}
+
+static int cmd_cgmr(at_type_t type, char *args)
+{
+    (void)args;
+    if (type != AT_EXEC) {
+        return AT_R_ERROR;
+    }
+    at_uart_write_line("%s", EN_FW_VERSION);
+    return AT_R_OK;
+}
+
 static int cmd_channel(at_type_t type, char *args)
 {
     if (type == AT_QUERY) {
@@ -645,6 +680,9 @@ static const at_cmd_t s_cmds[] = {
     { "ENINIT",      cmd_init      },
     { "ENDEINIT",    cmd_deinit    },
     { "ENVER",       cmd_ver       },
+    { "CGMI",        cmd_cgmi      },
+    { "CGMM",        cmd_cgmm      },
+    { "CGMR",        cmd_cgmr      },
     { "ENCHANNEL",   cmd_channel   },
     { "ENRATE",      cmd_rate      },
     { "ENBAUD",      cmd_baud      },

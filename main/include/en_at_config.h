@@ -28,6 +28,24 @@
 
 #define EN_FW_VERSION           "1.0.0"
 
+/*
+ * Product identity reported by the LTE-modem-style identity commands
+ * (3GPP TS 27.007): AT+CGMI (manufacturer), AT+CGMM (model) and
+ * AT+CGMR (firmware revision, = EN_FW_VERSION).
+ */
+#define EN_MANUFACTURER         "iLabs Electronics"
+
+/* Model string is per-target so each build reports the chip it runs on. */
+#if EN_TARGET_ESP8266
+#define EN_MODEL                "ESP8285 ESP-NOW"
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define EN_MODEL                "ESP32-C6 ESP-NOW"
+#elif CONFIG_IDF_TARGET_ESP32C3
+#define EN_MODEL                "ESP32-C3 ESP-NOW"
+#else
+#define EN_MODEL                "ESP32 ESP-NOW"
+#endif
+
 /* ------------------------------------------------------------------ */
 /*  AT transport: UART                                                 */
 /* ------------------------------------------------------------------ */

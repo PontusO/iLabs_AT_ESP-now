@@ -176,6 +176,9 @@ Conventions (spec section 1):
 | `AT+ENINIT` | `AT+ENINIT=<channel>` | init WiFi (STA underlay) + ESP-NOW on channel 1–14 |
 | `AT+ENDEINIT` | `AT+ENDEINIT` | tear down ESP-NOW and WiFi, free peers |
 | `AT+ENVER` | `AT+ENVER?` | `+ENVER:<fw_ver>,<espnow_ver>` |
+| `AT+CGMI` | `AT+CGMI` | manufacturer identification (`iLabs Electronics`) |
+| `AT+CGMM` | `AT+CGMM` | model identification (`ESP32-C6 ESP-NOW`, per target) |
+| `AT+CGMR` | `AT+CGMR` | firmware revision (`<fw_ver>`) |
 | `AT+ENCHANNEL` | `AT+ENCHANNEL?` / `=<ch>` | get/set WiFi channel |
 | `AT+ENRATE` | `AT+ENRATE=<rate_idx>` | set PHY rate (see below) |
 | `AT+ENBAUD` | `AT+ENBAUD?` / `=<baud>` | get/set AT link baud rate (standard rates ≤ 921600) |
@@ -196,6 +199,31 @@ Conventions (spec section 1):
 | `AT+ENPEERCHECK` | `=<mac>` | liveness ping: `+ENPEERCHECK:<mac>,<rtt_ms>` |
 | `AT+ENDISCOVER` | `AT+ENDISCOVER` / `=<timeout_ms>` | scan for devices: one `+ENDISCOVER:<mac>,<rssi>` line per responder |
 | `AT+ENDISCOVERABLE` | `AT+ENDISCOVERABLE?` / `=<0\|1>` | opt this device out of / into answering scans |
+
+### Identity commands (`AT+CGMI` / `AT+CGMM` / `AT+CGMR`)
+
+These follow the cellular-modem convention (3GPP TS 27.007), so a host that
+already speaks to LTE modems can probe this device the same way. Each is an
+execution command (no `?`/`=`) that answers with a bare identity string
+followed by `OK`:
+
+```
+AT+CGMI
+iLabs Electronics
+OK
+
+AT+CGMM
+ESP32-C6 ESP-NOW
+OK
+
+AT+CGMR
+1.0.0
+OK
+```
+
+`AT+CGMR` reports the firmware version — the same string as the first field
+of `AT+ENVER?`. The `AT+CGMM` model tracks the build target (`ESP32-C3
+ESP-NOW`, `ESP8285 ESP-NOW`, …); both strings live in `en_at_config.h`.
 
 ### URCs (unsolicited result codes)
 
