@@ -101,10 +101,10 @@
  * Mutually exclusive with hardware flow control. */
 #define EN_UART_SWAP_IO         0
 #elif CONFIG_IDF_TARGET_ESP32C6
-#define EN_UART_TX_PIN          5
-#define EN_UART_RX_PIN          4
-#define EN_UART_RTS_PIN         6
-#define EN_UART_CTS_PIN         7
+#define EN_UART_TX_PIN          16
+#define EN_UART_RX_PIN          17
+#define EN_UART_RTS_PIN         19
+#define EN_UART_CTS_PIN         18
 #elif CONFIG_IDF_TARGET_ESP32C3
 #define EN_UART_TX_PIN          7
 #define EN_UART_RX_PIN          6

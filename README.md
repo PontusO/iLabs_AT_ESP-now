@@ -60,8 +60,8 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | `EN_UART_BAUD` | `115200` | AT link baud rate at boot (change at runtime with `AT+ENBAUD`) |
 | `EN_UART_FLOWCTRL` | `EN_UART_FLOWCTRL_NONE` | `NONE`, `RTS`, `CTS` or `CTS_RTS` |
 | `EN_UART_RTS_THRESH` | `100` | RX FIFO level that de-asserts RTS |
-| `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 5/4, C3: 7/6 | AT UART data pins |
-| `EN_UART_RTS_PIN` / `EN_UART_CTS_PIN` | C6: 6/7, C3: 5/4 | flow control pins (`EN_PIN_NC` if unused) |
+| `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 16/17, C3: 7/6 | AT UART data pins |
+| `EN_UART_RTS_PIN` / `EN_UART_CTS_PIN` | C6: 19/18, C3: 5/4 | flow control pins (`EN_PIN_NC` if unused) |
 | `EN_FRAG_MAX_TOTAL` | `4096` | max `AT+ENFRAGSEND` payload / reassembly buffer |
 | `EN_FRAG_RX_SLOTS` | `4` | concurrent fragmented-receive sources |
 | `EN_SEND_CB_TIMEOUT_MS` | `1000` | max wait for the ESP-NOW send callback |
