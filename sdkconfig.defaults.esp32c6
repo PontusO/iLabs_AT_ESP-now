@@ -6,10 +6,14 @@
 # The AT link (UART1) is wired to GPIO16/17 on this board - which are also
 # the ESP32-C6's DEFAULT UART0 console pins. Left alone, the boot/log output
 # on UART0 drives GPIO16 at the same time as the AT UART, corrupting the AT
-# stream. Move the console TX to GPIO2 so the two never share a pin. Console
-# RX keeps the chip default (-1); this firmware never reads console stdin.
+# stream. Move the console TX to GPIO2 so the two never share a pin.
+#
+# Console RX is parked on GPIO4 (unused in this design) rather than the chip
+# default (GPIO17), which is the AT UART RX pin - the console must not tap the
+# AT input line. This firmware never reads console stdin, so GPIO4 just needs
+# to be a free pin.
 CONFIG_ESP_CONSOLE_UART_CUSTOM=y
 CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 CONFIG_ESP_CONSOLE_UART_TX_GPIO=2
-CONFIG_ESP_CONSOLE_UART_RX_GPIO=-1
+CONFIG_ESP_CONSOLE_UART_RX_GPIO=4
