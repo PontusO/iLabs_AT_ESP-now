@@ -1,0 +1,15 @@
+# ESP-NOW AT interpreter - ESP32-C6 overrides.
+#
+# ESP-IDF applies this file automatically on top of sdkconfig.defaults when
+# IDF_TARGET is esp32c6 (see tools/cmake/kconfig.cmake).
+#
+# The AT link (UART1) is wired to GPIO16/17 on this board - which are also
+# the ESP32-C6's DEFAULT UART0 console pins. Left alone, the boot/log output
+# on UART0 drives GPIO16 at the same time as the AT UART, corrupting the AT
+# stream. Move the console TX to GPIO2 so the two never share a pin. Console
+# RX keeps the chip default (-1); this firmware never reads console stdin.
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
+CONFIG_ESP_CONSOLE_UART_TX_GPIO=2
+CONFIG_ESP_CONSOLE_UART_RX_GPIO=-1

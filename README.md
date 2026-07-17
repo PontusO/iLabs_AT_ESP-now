@@ -39,6 +39,7 @@ Host MCU (RP2040/nRF52840)          ESP32-C3/C6 slave
 ```
 CMakeLists.txt              ESP-IDF project file
 sdkconfig.defaults          shared build defaults (C3 + C6)
+sdkconfig.defaults.esp32c6  C6 overrides (console TX moved off the AT pins)
 sdkconfig.defaults.esp8285  self-contained defaults for ESP8285 (2 MB, DOUT)
 main/
   main.c                    boot sequence
@@ -85,6 +86,13 @@ is `EN_UART_SWAP_IO`, which moves UART0 to GPIO15(TX)/GPIO13(RX).
 > **Note:** the AT link defaults to UART1 so that ESP-IDF boot/log output on
 > UART0 can never corrupt the AT stream. If you move the AT link to UART0,
 > also silence the console log (`CONFIG_LOG_DEFAULT_LEVEL_NONE`).
+>
+> On the ESP32-C6 the AT UART pins (GPIO16/17) are *also* the chip's default
+> UART0 console pins, so the two would collide on GPIO16. `sdkconfig.defaults.esp32c6`
+> relocates the console TX to GPIO2 (`CONFIG_ESP_CONSOLE_UART_TX_GPIO=2`) to keep
+> the log output off the AT link. The mask-ROM's first-stage boot log still
+> prints briefly on GPIO16 at reset; the host should discard AT input until
+> `+ENREADY`.
 
 ## Building
 
