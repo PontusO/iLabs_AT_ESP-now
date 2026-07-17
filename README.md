@@ -230,9 +230,15 @@ ESP-NOW`, `ESP8285 ESP-NOW`, …); both strings live in `en_at_config.h`.
 | URC | Meaning |
 |---|---|
 | `+ENREADY` | firmware booted / reset |
-| `+ENRECV:<src_mac>,<len>,<rssi>,<payload_hex>` | inbound frame (mandatory always-on) |
+| `+ENRECV:<src_mac>,<len>,<rssi>,<payload_hex>[,<dst_mac>]` | inbound frame (mandatory always-on); optional `<dst_mac>` distinguishes broadcast from unicast |
 | `+ENSENDOK:<mac>` / `+ENSENDFAIL:<mac>` | delivery result after `OK` of a send |
 | `+ENFRAGRECV:<mac>,<frag_idx>,<frag_total>` | fragment progress (both directions, 1-based) |
+
+> **`+ENRECV` destination field:** on ESP-IDF targets (C3/C6) `+ENRECV`
+> appends a fifth field, the frame's destination MAC, so the host can tell a
+> broadcast (`FFFFFFFFFFFF`) from a unicast (this device's own MAC). The field
+> is appended after the payload, so existing 4-field parsers are unaffected;
+> it is omitted on the ESP8285, whose receive callback carries no destination.
 
 ### Error codes (`+ENERR:<n>`)
 

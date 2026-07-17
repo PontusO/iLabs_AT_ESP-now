@@ -124,6 +124,8 @@ static peer_rssi_t s_peer_rssi[ESP_NOW_MAX_TOTAL_PEER_NUM];
 /* WiFi-task -> worker-task receive hand-off */
 typedef struct {
     uint8_t  mac[6];
+    uint8_t  dst[6];
+    bool     have_dst;      /* false on ESP8266 (no des_addr in the cb) */
     int      rssi;
     uint16_t len;
     uint8_t *data;
@@ -134,6 +136,8 @@ static QueueHandle_t s_rx_queue;
 typedef struct {
     bool     in_use;
     uint8_t  mac[6];
+    uint8_t  dst[6];
+    bool     have_dst;
     uint8_t  msg_id;
     uint8_t  total_frags;
     uint32_t recv_mask;
@@ -184,14 +188,22 @@ static void note_rssi(const uint8_t mac[6], int rssi)
 #endif
 }
 
-/* Emit +ENRECV:<src_mac>,<len>,<rssi>,<payload_hex> */
-static void urc_recv(const uint8_t mac[6], int rssi,
+/*
+ * Emit +ENRECV:<src_mac>,<len>,<rssi>,<payload_hex>[,<dst_mac>]
+ *
+ * The optional trailing <dst_mac> field lets the host tell a broadcast
+ * (FFFFFFFFFFFF) from a unicast frame. It is appended when the receive
+ * path knows the destination (all ESP-IDF targets) and omitted on
+ * ESP8266, whose receive callback carries no destination address - so
+ * older 4-field parsers keep working unchanged.
+ */
+static void urc_recv(const uint8_t mac[6], const uint8_t *dst, int rssi,
                      const uint8_t *data, size_t len)
 {
     char macs[13];
     mac_to_str(mac, macs);
 
-    size_t need = 32 + 12 + 2 * len;
+    size_t need = 64 + 2 * len;
     char *line = malloc(need);
     if (!line) {
         ESP_LOGE(TAG, "OOM for +ENRECV (%u bytes)", (unsigned)len);
@@ -203,6 +215,13 @@ static void urc_recv(const uint8_t mac[6], int rssi,
     for (size_t i = 0; i < len; i++) {
         line[off++] = hexd[data[i] >> 4];
         line[off++] = hexd[data[i] & 0x0F];
+    }
+    if (dst) {
+        char dsts[13];
+        mac_to_str(dst, dsts);
+        line[off++] = ',';
+        memcpy(line + off, dsts, 12);
+        off += 12;
     }
     line[off] = '\0';
     at_uart_write_line("%s", line);
@@ -226,7 +245,7 @@ static void send_cb(const uint8_t *mac_addr, esp_now_send_status_t status)
     }
 }
 
-static void enqueue_rx(const uint8_t *src_mac, int rssi,
+static void enqueue_rx(const uint8_t *src_mac, const uint8_t *dst_mac, int rssi,
                        const uint8_t *data, int len)
 {
     if (len <= 0 || !s_rx_queue) {
@@ -235,6 +254,12 @@ static void enqueue_rx(const uint8_t *src_mac, int rssi,
 
     rx_item_t item;
     memcpy(item.mac, src_mac, 6);
+    if (dst_mac) {
+        memcpy(item.dst, dst_mac, 6);
+        item.have_dst = true;
+    } else {
+        item.have_dst = false;
+    }
     item.rssi = rssi;
     item.len  = (uint16_t)len;
     item.data = malloc(len);
@@ -254,14 +279,14 @@ static void enqueue_rx(const uint8_t *src_mac, int rssi,
 /* 8266 SDK callback: source MAC only - no des_addr, no RSSI. */
 static void recv_cb(const uint8_t *mac_addr, const uint8_t *data, int len)
 {
-    enqueue_rx(mac_addr, 0, data, len);
+    enqueue_rx(mac_addr, NULL, 0, data, len);
 }
 #else
 static void recv_cb(const esp_now_recv_info_t *info,
                     const uint8_t *data, int len)
 {
-    enqueue_rx(info->src_addr, info->rx_ctrl ? info->rx_ctrl->rssi : 0,
-               data, len);
+    enqueue_rx(info->src_addr, info->des_addr,
+               info->rx_ctrl ? info->rx_ctrl->rssi : 0, data, len);
 }
 #endif
 
@@ -353,6 +378,10 @@ static void handle_frag_frame(const rx_item_t *it)
         }
         slot->in_use      = true;
         memcpy(slot->mac, it->mac, 6);
+        slot->have_dst    = it->have_dst;
+        if (it->have_dst) {
+            memcpy(slot->dst, it->dst, 6);
+        }
         slot->msg_id      = msg_id;
         slot->total_frags = total;
         slot->total_len   = total_len;
@@ -375,7 +404,8 @@ static void handle_frag_frame(const rx_item_t *it)
     uint32_t all = (total == 32) ? 0xFFFFFFFFu : ((1u << total) - 1u);
     if (slot->recv_mask == all) {
         note_rssi(it->mac, slot->rssi);
-        urc_recv(it->mac, slot->rssi, slot->buf, slot->total_len);
+        urc_recv(it->mac, slot->have_dst ? slot->dst : NULL, slot->rssi,
+                 slot->buf, slot->total_len);
         frag_slot_free(slot);
     }
 }
@@ -451,7 +481,8 @@ static void rx_task(void *arg)
             case EN_T_DATA:
                 note_rssi(it.mac, it.rssi);
                 s_stats.rx_ok++;
-                urc_recv(it.mac, it.rssi, p + EN_HDR_LEN, it.len - EN_HDR_LEN);
+                urc_recv(it.mac, it.have_dst ? it.dst : NULL, it.rssi,
+                         p + EN_HDR_LEN, it.len - EN_HDR_LEN);
                 break;
 
             case EN_T_FRAG:
@@ -500,7 +531,7 @@ static void rx_task(void *arg)
              * node - hand the whole payload to the host untouched. */
             note_rssi(it.mac, it.rssi);
             s_stats.rx_ok++;
-            urc_recv(it.mac, it.rssi, p, it.len);
+            urc_recv(it.mac, it.have_dst ? it.dst : NULL, it.rssi, p, it.len);
         }
 
         free(it.data);
