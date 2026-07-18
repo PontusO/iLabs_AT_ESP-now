@@ -621,6 +621,50 @@ it. Since discovery is unauthenticated, a production flow should verify
 discovered devices at the application layer (e.g. a signed hello exchanged
 over `AT+ENSEND`) before trusting them.
 
+## Testing / spec-conformance
+
+This firmware is exercised end-to-end by the **RegressionSuite** sketch in the
+companion host library
+[`iLabs_ESP-NOW`](https://github.com/PontusO/iLabs_ESP-NOW)
+(`examples/RegressionSuite`, with rig notes in `extras/REGRESSION.md`). It is a
+two-board self-test: flash the same sketch to two Challenger boards, and the one
+with the lower MAC becomes the TESTER, drives the scored sequence, and prints a
+PASS/FAIL report. Run it after changing this firmware to catch drift away from
+the AT+EN Command Set Spec v0.1.
+
+The suite runs in two phases:
+
+- **Phase 1 — raw AT protocol.** Sends AT lines straight to the interpreter and
+  asserts the *exact* terminal result, so this is the real conformance
+  tripwire. It covers both the OK/query paths **and negative paths**: malformed
+  input must be rejected with the precise response documented above, not
+  silently accepted. What it pins:
+  - **Grammar/dispatch** — unknown command → `+ENERR:8`; a non-`AT+` line, a
+    trailing char after `?`, a SET on a query-only command (`AT+ENVER=1`), and a
+    QUERY on an exec-only command (`AT+CGMI?`) → plain `ERROR`.
+  - **Range guards** — out-of-range channel (`AT+ENINIT=0/15`, `AT+ENCHANNEL=15`),
+    `AT+ENDISCOVER` window outside 50–30000, `AT+ENFLOW` mode > 3, and an invalid
+    `AT+ENBAUD` value → plain `ERROR`.
+  - **MAC / key validation** — a malformed or wrong-length MAC and a too-few-args
+    `AT+ENADDPEER` → plain `ERROR`; a bad-length/`non-hex` PMK/LMK and a
+    bad-length peer LMK → `+ENERR:6`; `encrypt` field > 1 → plain `ERROR`.
+  - **Data-path length/hex** — `AT+ENSEND`/`AT+ENBCAST` payload of 0 or > 248 B
+    and `AT+ENFRAGSEND` > 4096 B → `+ENERR:4`; a hex string whose length ≠ 2×len,
+    or any non-hex payload → plain `ERROR`.
+  - **Target-specific behavior** — the co-processor family is detected at runtime
+    from `AT+CGMM`, and the `AT+ENRATE` / `AT+ENRSSI` assertions branch on it
+    (e.g. the ESP8285 build returns `+ENERR:8` for any rate command and never
+    reports RSSI, whereas the C6/C3 build rejects an out-of-range rate index with
+    plain `ERROR`). See [ESP8285 target notes](#esp8285-target-notes).
+- **Phase 2 — host library API.** Exercises the C++ surface and the OTA
+  round-trips (unicast single-frame + fragmented, broadcast, and an encrypted
+  unicast round-trip), plus library-level negative/boundary cases.
+
+Because the negative assertions check the specific `+ENERR:<n>` code vs plain
+`ERROR` for each rejection, a change that (for example) starts accepting an
+over-length payload, drops an init/range check, or returns the wrong error code
+shows up as a named FAIL that points straight at the regressed command.
+
 ---
 
 *Implements the "AT+EN Command Set Specification v0.1 draft" — iLabs
