@@ -39,7 +39,8 @@ Host MCU (RP2040/nRF52840)          ESP32-C3/C6 slave
 ```
 CMakeLists.txt              ESP-IDF project file
 sdkconfig.defaults          shared build defaults (C3 + C6)
-sdkconfig.defaults.esp32c6  C6 overrides (console TX moved off the AT pins)
+sdkconfig.defaults.esp32c6  C6 overrides (console moved off the AT pins)
+sdkconfig.defaults.esp32c3  C3 overrides (console moved off the AT pins)
 sdkconfig.defaults.esp8285  self-contained defaults for ESP8285 (2 MB, DOUT)
 main/
   main.c                    boot sequence
@@ -61,8 +62,8 @@ Everything board-specific lives in this single header. Edit and rebuild.
 | `EN_UART_BAUD` | `115200` | AT link baud rate at boot (change at runtime with `AT+ENBAUD`) |
 | `EN_UART_FLOWCTRL` | `EN_UART_FLOWCTRL_NONE` | `NONE`, `RTS`, `CTS` or `CTS_RTS` |
 | `EN_UART_RTS_THRESH` | `100` | RX FIFO level that de-asserts RTS |
-| `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 16/17, C3: 7/6 | AT UART data pins |
-| `EN_UART_RTS_PIN` / `EN_UART_CTS_PIN` | C6: 19/18, C3: 5/4 | flow control pins (`EN_PIN_NC` if unused) |
+| `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 16/17, C3: 21/20 | AT UART data pins |
+| `EN_UART_RTS_PIN` / `EN_UART_CTS_PIN` | C6: 19/18, C3: `EN_PIN_NC` | flow control pins (`EN_PIN_NC` if unused) |
 | `EN_FRAG_MAX_TOTAL` | `4096` | max `AT+ENFRAGSEND` payload / reassembly buffer |
 | `EN_FRAG_RX_SLOTS` | `4` | concurrent fragmented-receive sources |
 | `EN_SEND_CB_TIMEOUT_MS` | `1000` | max wait for the ESP-NOW send callback |
@@ -87,12 +88,14 @@ is `EN_UART_SWAP_IO`, which moves UART0 to GPIO15(TX)/GPIO13(RX).
 > UART0 can never corrupt the AT stream. If you move the AT link to UART0,
 > also silence the console log (`CONFIG_LOG_DEFAULT_LEVEL_NONE`).
 >
-> On the ESP32-C6 the AT UART pins (GPIO16/17) are *also* the chip's default
-> UART0 console pins, so the two would collide on GPIO16. `sdkconfig.defaults.esp32c6`
-> relocates the console TX to GPIO2 (`CONFIG_ESP_CONSOLE_UART_TX_GPIO=2`) to keep
-> the log output off the AT link. The mask-ROM's first-stage boot log still
-> prints briefly on GPIO16 at reset; the host should discard AT input until
-> `+ENREADY`.
+> On both the ESP32-C6 (AT UART GPIO16/17) and the ESP32-C3 (AT UART
+> GPIO20/21) the AT pins are *also* the chip's default UART0 console pins, so
+> the console log would collide with the AT stream. The per-target defaults
+> relocate the console off those pins: `sdkconfig.defaults.esp32c6` moves it to
+> GPIO2/4, and `sdkconfig.defaults.esp32c3` to GPIO18/19
+> (`CONFIG_ESP_CONSOLE_UART_TX_GPIO` / `_RX_GPIO`). The mask-ROM's first-stage
+> boot log still prints briefly on the default pins at reset; the host should
+> discard AT input until `+ENREADY`.
 
 ## Building
 

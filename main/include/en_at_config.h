@@ -125,10 +125,13 @@
 #define EN_UART_RTS_PIN         19
 #define EN_UART_CTS_PIN         18
 #elif CONFIG_IDF_TARGET_ESP32C3
-#define EN_UART_TX_PIN          7
-#define EN_UART_RX_PIN          6
-#define EN_UART_RTS_PIN         5
-#define EN_UART_CTS_PIN         4
+/* AT link (UART1) wired to GPIO21(TX)/GPIO20(RX); RTS/CTS not connected.
+ * These are also the C3's default UART0 console pins, so the console is moved
+ * off them to GPIO18/19 in sdkconfig.defaults.esp32c3. */
+#define EN_UART_TX_PIN          21
+#define EN_UART_RX_PIN          20
+#define EN_UART_RTS_PIN         EN_PIN_NC
+#define EN_UART_CTS_PIN         EN_PIN_NC
 #else
 /* Fallback for other targets - adjust as required. */
 #define EN_UART_TX_PIN          5
