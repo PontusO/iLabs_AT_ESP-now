@@ -124,22 +124,72 @@ targets at any time the same way.
 ### Building for ESP8285 (ESP8266_RTOS_SDK)
 
 The ESP8285 is an ESP8266 with 2 MB flash on-die; it is **not** supported by
-ESP-IDF. Install
-[ESP8266_RTOS_SDK v3.4](https://github.com/espressif/ESP8266_RTOS_SDK)
-and its xtensa-lx106 toolchain, then build the same source tree with the
-ESP8285 defaults file (2 MB flash, DOUT mode — mandatory for the on-die
-flash — and console moved to UART1):
+ESP-IDF. It builds against **[ESP8266_RTOS_SDK v3.4](https://github.com/espressif/ESP8266_RTOS_SDK)**
+and its own xtensa-lx106 toolchain — a separate install from ESP-IDF.
+
+#### One-time toolchain setup
+
+```sh
+mkdir -p ~/esp && cd ~/esp
+git clone -b v3.4 --recursive https://github.com/espressif/ESP8266_RTOS_SDK.git
+cd ESP8266_RTOS_SDK
+./install.sh          # xtensa-lx106 toolchain + Python env (into ~/.espressif)
+```
+
+ESP8266_RTOS_SDK v3.4 dates from 2020, so on a current Linux host — **CMake ≥ 4,
+Python ≥ 3.12, PEP-668 "externally-managed" system Python** — the stock
+install/build trips over a few version gaps. Each has a one-line fix (skip any
+that don't apply to your host):
+
+**`install.sh` aborts: "Can not perform a '--user' install … not visible in
+this virtualenv".** The installer bootstraps `virtualenv` with `pip install
+--user`, which pip refuses inside a virtualenv or an externally-managed Python.
+Run the installer from a throwaway venv that already has `virtualenv`, so it
+skips that bootstrap:
+
+```sh
+python3 -m venv ~/esp/py-bootstrap
+. ~/esp/py-bootstrap/bin/activate
+pip install --upgrade pip virtualenv
+./install.sh          # from inside ~/esp/ESP8266_RTOS_SDK
+deactivate
+```
+
+**`export.sh`/build fails: "pkg_resources cannot be imported".** The SDK's
+dependency check imports `pkg_resources`, which setuptools ≥ 81 removed. Pin the
+SDK's own Python env back below that (match the env name `install.sh` created):
+
+```sh
+~/.espressif/python_env/rtos3.4_py3.12_env/bin/python -m pip install "setuptools<81"
+```
+
+**CMake errors: "Compatibility with CMake < 3.5 has been removed".** The old SDK
+declares an ancient `cmake_minimum_required`; tell CMake 4.x to tolerate it with
+`-DCMAKE_POLICY_VERSION_MINIMUM=3.5` (already in the build command below).
+
+> The SDK's pthread component also mis-names the force-include anchor for its
+> condition-variable implementation, which otherwise breaks the final C++ link
+> (`undefined reference to pthread_cond_init`). That one is already worked around
+> in `main/CMakeLists.txt` for the `esp8266` target — no action needed.
+
+#### Build & flash
+
+The ESP8285 defaults file sets 2 MB flash, DOUT mode (mandatory for the on-die
+flash) and moves the console to UART1, so the AT link keeps UART0:
 
 ```sh
 export IDF_PATH=~/esp/ESP8266_RTOS_SDK      # adjust
 . $IDF_PATH/export.sh
 
-rm -f sdkconfig                              # discard an ESP32 config
-idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.defaults.esp8285 build
+rm -rf build sdkconfig                       # wipe any ESP-IDF (C3/C6) build tree
+idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.defaults.esp8285 \
+       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-The 8266 SDK accepts only a single defaults file, which is why
+The two SDKs (ESP-IDF for C3/C6, ESP8266_RTOS_SDK for the 8285) **cannot share a
+`build/` directory**, so `rm -rf build` whenever you switch between them. The
+8266 SDK also accepts only a single defaults file, which is why
 `sdkconfig.defaults.esp8285` is self-contained rather than layered on top of
 `sdkconfig.defaults`.
 
