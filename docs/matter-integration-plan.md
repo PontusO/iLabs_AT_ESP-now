@@ -1,8 +1,15 @@
 # Plan — AT co-processor: ESP-NOW + Matter (C6), designed for an effortless merge
 
-Status: **draft for review** (not started). This plan builds two firmwares now — the
-existing ESP-NOW interpreter and a new **C6-only Matter** interpreter — while sharing
-enough design that unifying them into one binary later is a small, mechanical step.
+Status: **in progress**. This plan builds two firmwares now — the existing ESP-NOW
+interpreter and a new **C6-only Matter** interpreter — while sharing enough design that
+unifying them into one binary later is a small, mechanical step.
+
+Progress: **A1 + A2 landed in v1.1.0** — `components/at_core` extracted (UART transport
++ subsystem-agnostic parser engine), the static `s_cmds[]` dispatch replaced with the
+`at_register_commands()` API (C1), and the transport half of the config split (C4) done.
+Behaviour is byte-identical: builds green on C6/C3/8285, RegressionSuite 99/99 on hardware.
+Remaining Phase A: A3 (`link_mgr`) and A4 (finalize config split + optional `EN_`→`AT_`
+transport rename).
 
 ## 0. Goal & scope
 

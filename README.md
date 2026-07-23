@@ -42,19 +42,29 @@ sdkconfig.defaults          shared build defaults (C3 + C6)
 sdkconfig.defaults.esp32c6  C6 overrides (console moved off the AT pins)
 sdkconfig.defaults.esp32c3  C3 overrides (console moved off the AT pins)
 sdkconfig.defaults.esp8285  self-contained defaults for ESP8285 (2 MB, DOUT)
+components/
+  at_core/                  shared AT engine + transport (reused by every AT personality)
+    at_uart.c               UART transport (thread-safe TX, flow control)
+    at_parser.c             AT line assembly, grammar, dispatch engine (subsystem-agnostic)
+    include/
+      at_core_config.h      <-- shared transport config: UART port, pins, baud, flow, buffers
+      at_uart.h / at_parser.h
 main/
   main.c                    boot sequence
-  at_uart.c                 UART transport (thread-safe TX, flow control)
-  at_parser.c               AT line assembly, grammar, command handlers
+  en_at.c                   AT+EN… command handlers + table registration
   en_core.c                 ESP-NOW engine (peers, keys, data path, frag, ping)
   include/
-    en_at_config.h          <-- global configuration: pins, UART, tunables
-    at_uart.h / at_parser.h / en_core.h
+    en_at_config.h          <-- ESP-NOW config: identity, payload/frag limits, timeouts
+    en_at.h / en_core.h
 ```
 
-## Configuration — `main/include/en_at_config.h`
+## Configuration
 
-Everything board-specific lives in this single header. Edit and rebuild.
+Build-time config is split across two headers: the shared transport config
+(`components/at_core/include/at_core_config.h`: UART port, pins, baud, flow
+control, driver buffers) and the ESP-NOW config
+(`main/include/en_at_config.h`: identity strings, payload/fragment limits,
+timeouts, behaviour options). Edit and rebuild.
 
 | Macro | Default | Meaning |
 |---|---|---|
@@ -270,7 +280,7 @@ ESP32-C6 ESP-NOW
 OK
 
 AT+CGMR
-1.0.0
+1.1.0
 OK
 ```
 

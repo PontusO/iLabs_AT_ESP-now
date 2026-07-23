@@ -11,13 +11,15 @@
 #include "en_at_config.h"
 #include "at_uart.h"
 #include "at_parser.h"
+#include "en_at.h"
 #include "en_core.h"
 
 void app_main(void)
 {
     en_core_boot();
     at_uart_init();
-    at_parser_start();
+    en_at_register();
+    at_parser_start(&en_at_engine_cfg);
 
 #if EN_URC_READY_ON_BOOT
     /* Boot marker so the host can synchronize after a slave reset. */

@@ -12,7 +12,7 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 
-#include "en_at_config.h"
+#include "at_core_config.h"
 #include "at_uart.h"
 
 static const char *TAG = "at_uart";

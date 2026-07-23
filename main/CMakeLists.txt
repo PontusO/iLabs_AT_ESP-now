@@ -8,15 +8,17 @@ else()
     set(en_requires driver esp_wifi esp_netif esp_event esp_timer nvs_flash)
 endif()
 
+# The UART transport and the parser engine now live in components/at_core;
+# this app registers its AT+EN... table with that shared engine.
 idf_component_register(
     SRCS
         "main.c"
-        "at_uart.c"
-        "at_parser.c"
+        "en_at.c"
         "en_core.c"
     INCLUDE_DIRS
         "include"
     PRIV_REQUIRES
+        at_core
         ${en_requires}
 )
 

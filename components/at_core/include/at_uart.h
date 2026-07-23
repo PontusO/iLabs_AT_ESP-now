@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 
-/* Install the UART driver per en_at_config.h (port, pins, flow control). */
+/* Install the UART driver per at_core_config.h (port, pins, flow control). */
 void at_uart_init(void);
 
 /* Raw write, mutex-protected. */
@@ -43,7 +43,7 @@ int at_uart_get_flowctrl(void);
 
 /*
  * Switch the AT link hardware flow control at runtime. `mode` is one of
- * the EN_UART_FLOWCTRL_* values in en_at_config.h. On ESP32-C3/C6 the
+ * the EN_UART_FLOWCTRL_* values in at_core_config.h. On ESP32-C3/C6 the
  * RTS/CTS GPIOs are routed on demand (they need not have been enabled at
  * build time). Drains the TX FIFO first so a response already queued
  * (e.g. the "OK" acknowledging the change) still leaves before flow
