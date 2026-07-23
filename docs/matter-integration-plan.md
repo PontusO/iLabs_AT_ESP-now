@@ -4,11 +4,13 @@ Status: **in progress**. This plan builds two firmwares now — the existing ESP
 interpreter and a new **C6-only Matter** interpreter — while sharing enough design that
 unifying them into one binary later is a small, mechanical step.
 
-Progress: **A1 + A2 landed in v1.1.0** — `components/at_core` extracted (UART transport
+Progress: **A1–A3 landed** (v1.1.0 line). `components/at_core` extracted (UART transport
 + subsystem-agnostic parser engine), the static `s_cmds[]` dispatch replaced with the
-`at_register_commands()` API (C1), and the transport half of the config split (C4) done.
-Behaviour is byte-identical: builds green on C6/C3/8285, RegressionSuite 99/99 on hardware.
-Remaining Phase A: A3 (`link_mgr`) and A4 (finalize config split + optional `EN_`→`AT_`
+`at_register_commands()` API (C1), the transport half of the config split (C4) done, and
+the radio/link owner `link_mgr` introduced (C3): `en_core` no longer calls
+`esp_wifi_*`/`esp_netif_*` for lifecycle/channel, only its own ESP-NOW PHY-rate tuning.
+Behaviour byte-identical: builds green on C6/C3/8285, RegressionSuite 99/99 on hardware
+after each step. Remaining Phase A: A4 (finalize config split + optional `EN_`→`AT_`
 transport rename).
 
 ## 0. Goal & scope

@@ -51,6 +51,7 @@
 #endif
 
 #include "at_uart.h"
+#include "link_mgr.h"
 #include "en_core.h"
 
 static const char *TAG = "en_core";
@@ -591,8 +592,9 @@ void en_core_boot(void)
     } else {
         ESP_ERROR_CHECK(err);
     }
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    /* Platform prerequisites (netif + default event loop) are owned by the
+     * shared link manager (C3), so a merged binary brings them up once. */
+    link_mgr_init();
 
     s_send_sem = xSemaphoreCreateBinary();
     s_pong_sem = xSemaphoreCreateBinary();
@@ -616,25 +618,20 @@ int en_init(int channel)
         return en_set_channel(channel);
     }
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    if (esp_wifi_init(&cfg) != ESP_OK) {
-        goto fail;
+    /* Bring the radio up through the shared link manager (C3): ESP-NOW
+     * uses the minimal WiFi-STA path (no netif/IP). */
+    if (link_mgr_bring_up(LINK_MODE_ESPNOW, channel) != 0) {
+        s_state = EN_STATE_ERROR;
+        return EN_ERR_INIT;
     }
-    if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
-        esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
-        esp_wifi_start() != ESP_OK) {
-        goto fail_deinit_wifi;
-    }
-    esp_wifi_set_ps(WIFI_PS_NONE);      /* ESP-NOW peers can't buffer for us */
 
-    if (esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-        goto fail_stop_wifi;
-    }
     if (esp_now_init() != ESP_OK ||
         esp_now_register_send_cb(send_cb) != ESP_OK ||
         esp_now_register_recv_cb(recv_cb) != ESP_OK) {
         esp_now_deinit();
-        goto fail_stop_wifi;
+        link_mgr_tear_down();
+        s_state = EN_STATE_ERROR;
+        return EN_ERR_INIT;
     }
 
     s_channel = channel;
@@ -643,14 +640,6 @@ int en_init(int channel)
     memset(&s_stats, 0, sizeof(s_stats));
     ESP_LOGI(TAG, "ESP-NOW up on channel %d", channel);
     return EN_OK;
-
-fail_stop_wifi:
-    esp_wifi_stop();
-fail_deinit_wifi:
-    esp_wifi_deinit();
-fail:
-    s_state = EN_STATE_ERROR;
-    return EN_ERR_INIT;
 }
 
 int en_deinit(void)
@@ -662,8 +651,7 @@ int en_deinit(void)
 
     s_init = false;
     esp_now_deinit();
-    esp_wifi_stop();
-    esp_wifi_deinit();
+    link_mgr_tear_down();
 
     /* Drop anything still queued for the RX worker. In-flight
      * reassembly slots belong to the RX task and are reclaimed there by
@@ -700,7 +688,7 @@ int en_set_channel(int channel)
     if (!s_init) {
         return EN_ERR_NOT_INIT;
     }
-    if (esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+    if (link_mgr_set_channel(channel) != 0) {
         return EN_ERR_GENERIC;
     }
     s_channel = channel;
@@ -710,9 +698,8 @@ int en_set_channel(int channel)
 int en_get_channel(void)
 {
     if (s_init) {
-        uint8_t prim = 0;
-        wifi_second_chan_t sec;
-        if (esp_wifi_get_channel(&prim, &sec) == ESP_OK && prim > 0) {
+        int prim = link_mgr_get_channel();
+        if (prim > 0) {
             s_channel = prim;
         }
     }
