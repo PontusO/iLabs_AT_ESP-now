@@ -4,14 +4,14 @@ Status: **in progress**. This plan builds two firmwares now — the existing ESP
 interpreter and a new **C6-only Matter** interpreter — while sharing enough design that
 unifying them into one binary later is a small, mechanical step.
 
-Progress: **A1–A3 landed** (v1.1.0 line). `components/at_core` extracted (UART transport
-+ subsystem-agnostic parser engine), the static `s_cmds[]` dispatch replaced with the
-`at_register_commands()` API (C1), the transport half of the config split (C4) done, and
-the radio/link owner `link_mgr` introduced (C3): `en_core` no longer calls
+Progress: **Phase A complete (A1–A4), v1.1.0 line.** `components/at_core` extracted (UART
+transport + subsystem-agnostic parser engine), the static `s_cmds[]` dispatch replaced with
+the `at_register_commands()` API (C1), the config split done (C4) with the shared transport
+macros de-branded `EN_UART_*`/`EN_TARGET_ESP8266` → `AT_UART_*`/`AT_TARGET_ESP8266`, and the
+radio/link owner `link_mgr` introduced (C3): `en_core` no longer calls
 `esp_wifi_*`/`esp_netif_*` for lifecycle/channel, only its own ESP-NOW PHY-rate tuning.
-Behaviour byte-identical: builds green on C6/C3/8285, RegressionSuite 99/99 on hardware
-after each step. Remaining Phase A: A4 (finalize config split + optional `EN_`→`AT_`
-transport rename).
+Behaviour byte-identical throughout: builds green on C6/C3/8285, RegressionSuite 99/99 on
+hardware. `at_core` is now a clean, ESP-NOW-agnostic base ready for the Matter app (Phase B).
 
 ## 0. Goal & scope
 

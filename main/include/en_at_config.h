@@ -14,7 +14,7 @@
 #pragma once
 
 /* Shared transport config: UART port/pins/baud/flow/buffers, plus the
- * EN_TARGET_ESP8266 build switch used across the firmware. */
+ * AT_TARGET_ESP8266 build switch used across the firmware. */
 #include "at_core_config.h"
 
 /* ------------------------------------------------------------------ */
@@ -31,7 +31,7 @@
 #define EN_MANUFACTURER         "iLabs Electronics"
 
 /* Model string is per-target so each build reports the chip it runs on. */
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
 #define EN_MODEL                "ESP8285 ESP-NOW"
 #elif CONFIG_IDF_TARGET_ESP32C6
 #define EN_MODEL                "ESP32-C6 ESP-NOW"

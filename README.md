@@ -68,12 +68,12 @@ timeouts, behaviour options). Edit and rebuild.
 
 | Macro | Default | Meaning |
 |---|---|---|
-| `EN_UART_PORT` | `UART_NUM_1` | UART used for the AT link (keep the console on UART0) |
-| `EN_UART_BAUD` | `115200` | AT link baud rate at boot (change at runtime with `AT+ENBAUD`) |
-| `EN_UART_FLOWCTRL` | `EN_UART_FLOWCTRL_NONE` | `NONE`, `RTS`, `CTS` or `CTS_RTS` |
-| `EN_UART_RTS_THRESH` | `100` | RX FIFO level that de-asserts RTS |
-| `EN_UART_TX_PIN` / `EN_UART_RX_PIN` | C6: 16/17, C3: 21/20 | AT UART data pins |
-| `EN_UART_RTS_PIN` / `EN_UART_CTS_PIN` | C6: 19/18, C3: `EN_PIN_NC` | flow control pins (`EN_PIN_NC` if unused) |
+| `AT_UART_PORT` | `UART_NUM_1` | UART used for the AT link (keep the console on UART0) |
+| `AT_UART_BAUD` | `115200` | AT link baud rate at boot (change at runtime with `AT+ENBAUD`) |
+| `AT_UART_FLOWCTRL` | `AT_UART_FLOWCTRL_NONE` | `NONE`, `RTS`, `CTS` or `CTS_RTS` |
+| `AT_UART_RTS_THRESH` | `100` | RX FIFO level that de-asserts RTS |
+| `AT_UART_TX_PIN` / `AT_UART_RX_PIN` | C6: 16/17, C3: 21/20 | AT UART data pins |
+| `AT_UART_RTS_PIN` / `AT_UART_CTS_PIN` | C6: 19/18, C3: `AT_PIN_NC` | flow control pins (`AT_PIN_NC` if unused) |
 | `EN_FRAG_MAX_TOTAL` | `4096` | max `AT+ENFRAGSEND` payload / reassembly buffer |
 | `EN_FRAG_RX_SLOTS` | `4` | concurrent fragmented-receive sources |
 | `EN_SEND_CB_TIMEOUT_MS` | `1000` | max wait for the ESP-NOW send callback |
@@ -92,7 +92,7 @@ On ESP32-C3/C6 all four UART pins go through the GPIO matrix, so any free
 GPIO may be used. Pin defaults are per-target (`CONFIG_IDF_TARGET_*` blocks
 in the same file). On the ESP8285 the UART0 pins are fixed by the chip's IO
 mux (TX=GPIO1, RX=GPIO3, RTS=GPIO15, CTS=GPIO13); the only pin option there
-is `EN_UART_SWAP_IO`, which moves UART0 to GPIO15(TX)/GPIO13(RX).
+is `AT_UART_SWAP_IO`, which moves UART0 to GPIO15(TX)/GPIO13(RX).
 
 > **Note:** the AT link defaults to UART1 so that ESP-IDF boot/log output on
 > UART0 can never corrupt the AT stream. If you move the AT link to UART0,
@@ -381,7 +381,7 @@ OK                  <- confirms the new rate works
 ```
 
 The setting is runtime-only: after a reset the link comes back up at
-`EN_UART_BAUD` (115200 by default) and emits `+ENREADY` there, so a host
+`AT_UART_BAUD` (115200 by default) and emits `+ENREADY` there, so a host
 using a faster rate should fall back to the default rate whenever it sees
 the link go quiet after a slave reset.
 
@@ -403,9 +403,9 @@ slave hold off instead of overrunning the host; CTS lets the host throttle
 the slave the same way. Enable it (`3`) before streaming large
 `AT+ENSENDRAW` / fragmented payloads, and wire RTS/CTS as well as TX/RX.
 
-On ESP32-C3/C6 the RTS/CTS pins (`EN_UART_RTS_PIN` / `EN_UART_CTS_PIN`,
+On ESP32-C3/C6 the RTS/CTS pins (`AT_UART_RTS_PIN` / `AT_UART_CTS_PIN`,
 routed through the GPIO matrix) are assigned on demand, so flow control can
-be switched on even if the build defaulted to `EN_UART_FLOWCTRL_NONE`. Like
+be switched on even if the build defaulted to `AT_UART_FLOWCTRL_NONE`. Like
 `AT+ENBAUD`, the `OK` is transmitted **at the old setting** (TX drained
 first) and the change takes effect immediately after — so the host should
 enable its own flow control only after it sees the `OK`:
@@ -418,9 +418,9 @@ AT
 OK                  <- confirms the link works with flow control
 ```
 
-The setting is runtime-only and resets to `EN_UART_FLOWCTRL` (build
+The setting is runtime-only and resets to `AT_UART_FLOWCTRL` (build
 default) after a slave reset. On the ESP8285 flow control is pin-fixed
-(RTS=GPIO15, CTS=GPIO13) and unavailable when `EN_UART_SWAP_IO` is set —
+(RTS=GPIO15, CTS=GPIO13) and unavailable when `AT_UART_SWAP_IO` is set —
 `AT+ENFLOW=<non-zero>` then returns `ERROR`.
 
 ### PHY rates (`AT+ENRATE=<rate_idx>`)
@@ -500,7 +500,7 @@ imposed by the ESP8285 hardware and the 8266 SDK:
   via `sdkconfig.defaults.esp8285`.
 - **Boot ROM chatter:** the mask ROM prints on GPIO1 at 74880 baud during
   every reset — the host must discard input until `+ENREADY`. To keep the
-  AT link completely clean, set `EN_UART_SWAP_IO 1` in `en_at_config.h`
+  AT link completely clean, set `AT_UART_SWAP_IO 1` in `en_at_config.h`
   to move UART0 to GPIO15(TX)/GPIO13(RX); this sacrifices hardware flow
   control (same pins).
 - **No RSSI:** the 8266 SDK's receive callback does not expose RSSI.

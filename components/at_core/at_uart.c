@@ -18,79 +18,79 @@
 static const char *TAG = "at_uart";
 
 static SemaphoreHandle_t s_tx_mutex;
-static int s_baud = EN_UART_BAUD;
-static int s_flowctrl = EN_UART_FLOWCTRL;
+static int s_baud = AT_UART_BAUD;
+static int s_flowctrl = AT_UART_FLOWCTRL;
 
 static uart_hw_flowcontrol_t hw_flowctrl_for(int mode)
 {
     switch (mode) {
-    case EN_UART_FLOWCTRL_RTS:     return UART_HW_FLOWCTRL_RTS;
-    case EN_UART_FLOWCTRL_CTS:     return UART_HW_FLOWCTRL_CTS;
-    case EN_UART_FLOWCTRL_CTS_RTS: return UART_HW_FLOWCTRL_CTS_RTS;
+    case AT_UART_FLOWCTRL_RTS:     return UART_HW_FLOWCTRL_RTS;
+    case AT_UART_FLOWCTRL_CTS:     return UART_HW_FLOWCTRL_CTS;
+    case AT_UART_FLOWCTRL_CTS_RTS: return UART_HW_FLOWCTRL_CTS_RTS;
     default:                       return UART_HW_FLOWCTRL_DISABLE;
     }
 }
 
 void at_uart_init(void)
 {
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
     /* ESP8266_RTOS_SDK: pins are fixed by the IO mux and configured by
      * uart_param_config() itself (incl. RTS=GPIO15 / CTS=GPIO13 when
      * flow control is enabled); there is no uart_set_pin() and no
      * source_clk field. */
     uart_config_t cfg = {
-        .baud_rate  = EN_UART_BAUD,
+        .baud_rate  = AT_UART_BAUD,
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
         .stop_bits  = UART_STOP_BITS_1,
         .flow_ctrl  = hw_flowctrl_for(s_flowctrl),
-        .rx_flow_ctrl_thresh = EN_UART_RTS_THRESH,
+        .rx_flow_ctrl_thresh = AT_UART_RTS_THRESH,
     };
 
-    ESP_ERROR_CHECK(uart_driver_install(EN_UART_PORT,
-                                        EN_UART_RX_BUF_SIZE,
-                                        EN_UART_TX_BUF_SIZE,
+    ESP_ERROR_CHECK(uart_driver_install(AT_UART_PORT,
+                                        AT_UART_RX_BUF_SIZE,
+                                        AT_UART_TX_BUF_SIZE,
                                         0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(EN_UART_PORT, &cfg));
-#if EN_UART_SWAP_IO
+    ESP_ERROR_CHECK(uart_param_config(AT_UART_PORT, &cfg));
+#if AT_UART_SWAP_IO
     /* Move UART0 to GPIO15(TX)/GPIO13(RX): keeps the ROM's 74880-baud
      * boot output off the AT link. */
     ESP_ERROR_CHECK(uart_enable_swap());
 #endif
 #else
     const uart_config_t cfg = {
-        .baud_rate  = EN_UART_BAUD,
+        .baud_rate  = AT_UART_BAUD,
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
         .stop_bits  = UART_STOP_BITS_1,
         .flow_ctrl  = hw_flowctrl_for(s_flowctrl),
-        .rx_flow_ctrl_thresh = EN_UART_RTS_THRESH,
+        .rx_flow_ctrl_thresh = AT_UART_RTS_THRESH,
         .source_clk = UART_SCLK_DEFAULT,
     };
 
-    ESP_ERROR_CHECK(uart_driver_install(EN_UART_PORT,
-                                        EN_UART_RX_BUF_SIZE,
-                                        EN_UART_TX_BUF_SIZE,
+    ESP_ERROR_CHECK(uart_driver_install(AT_UART_PORT,
+                                        AT_UART_RX_BUF_SIZE,
+                                        AT_UART_TX_BUF_SIZE,
                                         0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(EN_UART_PORT, &cfg));
+    ESP_ERROR_CHECK(uart_param_config(AT_UART_PORT, &cfg));
 
-    int rts = (EN_UART_FLOWCTRL == EN_UART_FLOWCTRL_RTS ||
-               EN_UART_FLOWCTRL == EN_UART_FLOWCTRL_CTS_RTS)
-                  ? EN_UART_RTS_PIN : UART_PIN_NO_CHANGE;
-    int cts = (EN_UART_FLOWCTRL == EN_UART_FLOWCTRL_CTS ||
-               EN_UART_FLOWCTRL == EN_UART_FLOWCTRL_CTS_RTS)
-                  ? EN_UART_CTS_PIN : UART_PIN_NO_CHANGE;
+    int rts = (AT_UART_FLOWCTRL == AT_UART_FLOWCTRL_RTS ||
+               AT_UART_FLOWCTRL == AT_UART_FLOWCTRL_CTS_RTS)
+                  ? AT_UART_RTS_PIN : UART_PIN_NO_CHANGE;
+    int cts = (AT_UART_FLOWCTRL == AT_UART_FLOWCTRL_CTS ||
+               AT_UART_FLOWCTRL == AT_UART_FLOWCTRL_CTS_RTS)
+                  ? AT_UART_CTS_PIN : UART_PIN_NO_CHANGE;
 
-    ESP_ERROR_CHECK(uart_set_pin(EN_UART_PORT,
-                                 EN_UART_TX_PIN, EN_UART_RX_PIN, rts, cts));
+    ESP_ERROR_CHECK(uart_set_pin(AT_UART_PORT,
+                                 AT_UART_TX_PIN, AT_UART_RX_PIN, rts, cts));
 #endif
 
     s_tx_mutex = xSemaphoreCreateMutex();
     configASSERT(s_tx_mutex);
 
     ESP_LOGI(TAG, "AT UART%d up: %d baud, TX=%d RX=%d flowctrl=%d",
-             EN_UART_PORT, EN_UART_BAUD, EN_UART_TX_PIN, EN_UART_RX_PIN,
-             EN_UART_FLOWCTRL);
+             AT_UART_PORT, AT_UART_BAUD, AT_UART_TX_PIN, AT_UART_RX_PIN,
+             AT_UART_FLOWCTRL);
 }
 
 void at_uart_write(const void *data, size_t len)
@@ -99,7 +99,7 @@ void at_uart_write(const void *data, size_t len)
         return;
     }
     xSemaphoreTake(s_tx_mutex, portMAX_DELAY);
-    uart_write_bytes(EN_UART_PORT, data, len);
+    uart_write_bytes(AT_UART_PORT, data, len);
     xSemaphoreGive(s_tx_mutex);
 }
 
@@ -132,7 +132,7 @@ void at_uart_write_line(const char *fmt, ...)
 
 int at_uart_read(uint8_t *buf, size_t len, TickType_t ticks_to_wait)
 {
-    int n = uart_read_bytes(EN_UART_PORT, buf, len, ticks_to_wait);
+    int n = uart_read_bytes(AT_UART_PORT, buf, len, ticks_to_wait);
     return (n < 0) ? 0 : n;
 }
 
@@ -146,9 +146,9 @@ int at_uart_set_baud(int baud)
     /* Hold the TX mutex so no writer can queue more output between the
      * drain and the rate switch. */
     xSemaphoreTake(s_tx_mutex, portMAX_DELAY);
-    uart_wait_tx_done(EN_UART_PORT, pdMS_TO_TICKS(1000));
+    uart_wait_tx_done(AT_UART_PORT, pdMS_TO_TICKS(1000));
 
-    esp_err_t err = uart_set_baudrate(EN_UART_PORT, (uint32_t)baud);
+    esp_err_t err = uart_set_baudrate(AT_UART_PORT, (uint32_t)baud);
     if (err == ESP_OK) {
         s_baud = baud;
     }
@@ -169,7 +169,7 @@ int at_uart_get_flowctrl(void)
 
 int at_uart_set_flowctrl(int mode)
 {
-    if (mode < EN_UART_FLOWCTRL_NONE || mode > EN_UART_FLOWCTRL_CTS_RTS) {
+    if (mode < AT_UART_FLOWCTRL_NONE || mode > AT_UART_FLOWCTRL_CTS_RTS) {
         return -1;
     }
 
@@ -177,26 +177,26 @@ int at_uart_set_flowctrl(int mode)
      * old state leaves before flow control engages (enabling CTS would
      * otherwise gate this device's transmitter on the host's readiness). */
     xSemaphoreTake(s_tx_mutex, portMAX_DELAY);
-    uart_wait_tx_done(EN_UART_PORT, pdMS_TO_TICKS(1000));
+    uart_wait_tx_done(AT_UART_PORT, pdMS_TO_TICKS(1000));
 
     esp_err_t err = ESP_OK;
 
-#if !EN_TARGET_ESP8266
+#if !AT_TARGET_ESP8266
     /* Route the RTS/CTS GPIOs for the requested mode (or leave them alone
      * when the corresponding signal is unused). TX/RX stay put. On C3/C6
      * all four pins go through the GPIO matrix, so this works even when
      * flow control was disabled at build time. */
-    int rts = (mode == EN_UART_FLOWCTRL_RTS || mode == EN_UART_FLOWCTRL_CTS_RTS)
-                  ? EN_UART_RTS_PIN : UART_PIN_NO_CHANGE;
-    int cts = (mode == EN_UART_FLOWCTRL_CTS || mode == EN_UART_FLOWCTRL_CTS_RTS)
-                  ? EN_UART_CTS_PIN : UART_PIN_NO_CHANGE;
-    err = uart_set_pin(EN_UART_PORT, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE,
+    int rts = (mode == AT_UART_FLOWCTRL_RTS || mode == AT_UART_FLOWCTRL_CTS_RTS)
+                  ? AT_UART_RTS_PIN : UART_PIN_NO_CHANGE;
+    int cts = (mode == AT_UART_FLOWCTRL_CTS || mode == AT_UART_FLOWCTRL_CTS_RTS)
+                  ? AT_UART_CTS_PIN : UART_PIN_NO_CHANGE;
+    err = uart_set_pin(AT_UART_PORT, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE,
                        rts, cts);
 #endif
 
     if (err == ESP_OK) {
-        err = uart_set_hw_flow_ctrl(EN_UART_PORT, hw_flowctrl_for(mode),
-                                    EN_UART_RTS_THRESH);
+        err = uart_set_hw_flow_ctrl(AT_UART_PORT, hw_flowctrl_for(mode),
+                                    AT_UART_RTS_THRESH);
     }
     if (err == ESP_OK) {
         s_flowctrl = mode;

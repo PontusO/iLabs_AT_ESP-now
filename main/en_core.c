@@ -43,7 +43,7 @@
 #include "esp_idf_version.h"
 #include "nvs_flash.h"
 
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
 #include "esp_system.h"     /* esp_read_mac + esp_random on the 8266 SDK */
 #else
 #include "esp_mac.h"
@@ -160,7 +160,7 @@ static void mac_to_str(const uint8_t mac[6], char out[13])
 
 static void note_rssi(const uint8_t mac[6], int rssi)
 {
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
     /* The 8266 SDK's ESP-NOW receive callback carries no RSSI, so the
      * tracker stays invalid and AT+ENRSSI reports ERROR. */
     (void)mac;
@@ -276,7 +276,7 @@ static void enqueue_rx(const uint8_t *src_mac, const uint8_t *dst_mac, int rssi,
     }
 }
 
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
 /* 8266 SDK callback: source MAC only - no des_addr, no RSSI. */
 static void recv_cb(const uint8_t *mac_addr, const uint8_t *data, int len)
 {
@@ -542,7 +542,7 @@ static void rx_task(void *arg)
 
 /* ---- PHY rate ------------------------------------------------------ */
 
-#if !EN_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if !AT_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 static wifi_phy_mode_t phymode_for_rate(int rate)
 {
     if (rate <= 0x07) {
@@ -582,7 +582,7 @@ void en_core_boot(void)
     }
 
     esp_err_t err = nvs_flash_init();
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
     if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
 #else
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -708,7 +708,7 @@ int en_get_channel(void)
 
 int en_set_rate(int rate_idx)
 {
-#if EN_TARGET_ESP8266
+#if AT_TARGET_ESP8266
     /* The 8266 SDK exposes no ESP-NOW rate API at all. */
     (void)rate_idx;
     return EN_ERR_UNSUPPORTED;
@@ -750,7 +750,7 @@ int en_set_rate(int rate_idx)
     s_rate = rate_idx;
     return EN_OK;
 #endif
-#endif /* EN_TARGET_ESP8266 */
+#endif /* AT_TARGET_ESP8266 */
 }
 
 void en_get_mac(uint8_t mac[6])
@@ -812,7 +812,7 @@ int en_add_peer(const uint8_t mac[6], int channel, bool encrypt,
         return EN_ERR_GENERIC;
     }
 
-#if !EN_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if !AT_TARGET_ESP8266 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     apply_rate_to_peer(mac);
 #endif
     return EN_OK;

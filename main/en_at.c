@@ -173,14 +173,14 @@ static int cmd_flow(at_type_t type, char *args)
     }
 
     unsigned mode;
-    if (!at_parse_uint(args, &mode) || mode > EN_UART_FLOWCTRL_CTS_RTS) {
+    if (!at_parse_uint(args, &mode) || mode > AT_UART_FLOWCTRL_CTS_RTS) {
         return AT_R_ERROR;
     }
 
-#if EN_TARGET_ESP8266 && EN_UART_SWAP_IO
+#if AT_TARGET_ESP8266 && AT_UART_SWAP_IO
     /* The UART0 IO swap steals the RTS/CTS GPIOs for TX/RX, so hardware
      * flow control cannot be enabled on this build (see at_core_config.h). */
-    if (mode != EN_UART_FLOWCTRL_NONE) {
+    if (mode != AT_UART_FLOWCTRL_NONE) {
         return AT_R_ERROR;
     }
 #endif
