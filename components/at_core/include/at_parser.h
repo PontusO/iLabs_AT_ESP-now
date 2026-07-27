@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * at_parser.h - subsystem-agnostic AT command engine.
  *
  * Owns line assembly, the "AT"/"ATE" primitives, argument splitting and

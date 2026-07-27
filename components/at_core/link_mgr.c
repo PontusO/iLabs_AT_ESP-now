@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * link_mgr.c - the single radio/link owner (design invariant C3).
  *
  * The ESP-NOW bring-up ladder here is a verbatim extraction of what

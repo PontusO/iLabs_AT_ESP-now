@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * at_core_config.h
  *
  * Shared AT-core transport configuration: the UART port, pins, baud,

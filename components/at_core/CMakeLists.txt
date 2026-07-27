@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+# SPDX-License-Identifier: MIT
+
 # Shared AT-core: UART transport + subsystem-agnostic parser engine +
 # the single radio/link owner (link_mgr). Reused by every AT personality
 # (ESP-NOW today, Matter next).

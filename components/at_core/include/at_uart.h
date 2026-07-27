@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * at_uart.h - UART transport for the AT interpreter.
  *
  * Thin, thread-safe wrapper around the ESP-IDF UART driver. All output

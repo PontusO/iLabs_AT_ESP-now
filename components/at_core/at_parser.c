@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * at_parser.c - subsystem-agnostic AT command engine.
  *
  * Line assembly and dispatch. Terminal responses are "OK" or "ERROR";

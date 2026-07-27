@@ -727,5 +727,23 @@ shows up as a named FAIL that points straight at the regressed command.
 
 ---
 
+## License
+
+MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Pontus Oldberg.
+
+This matters beyond this repository: `components/at_core` is the shared AT
+engine, and the sibling
+[iLabs_AT_Hearth](https://github.com/PontusO/iLabs_AT_Hearth) firmware compiles
+it in via `EXTRA_COMPONENT_DIRS`. Every file in `at_core` carries an
+`SPDX-License-Identifier: MIT` header so the grant travels with the source
+rather than depending on which repository it was copied from.
+
+The firmware builds against ESP-IDF (Apache-2.0) on ESP32-C6/C3 and
+ESP8266_RTOS_SDK (Apache-2.0, plus Espressif's proprietary WiFi libraries under
+binary redistribution terms) on ESP8285. Both are permissive; no copyleft
+licence reaches the image.
+
+---
+
 *Implements the "AT+EN Command Set Specification v0.1 draft" — iLabs
 Challenger+ platform, ESP32 slave co-processor.*

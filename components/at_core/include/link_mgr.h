@@ -1,4 +1,7 @@
 /*
+ * SPDX-FileCopyrightText: 2026 Pontus Oldberg <pontus@ilabs.se>
+ * SPDX-License-Identifier: MIT
+ *
  * link_mgr.h - the single radio/link owner (design invariant C3).
  *
  * No AT subsystem brings WiFi/netif up or down inline. Everything goes
