@@ -7,7 +7,7 @@
  * Owns line assembly, the "AT"/"ATE" primitives, argument splitting and
  * the common parse helpers (hex/MAC/uint), the dispatch loop, and the
  * result -> "OK"/"ERROR"/"+xxERR:<n>" mapping. It knows nothing about
- * ESP-NOW or Matter: each subsystem registers its own command table
+ * any particular subsystem: each one registers its own command table
  * (design invariant C1) and supplies an engine config that names its
  * error-URC prefix and code space (C2/C5), so a single engine drives any
  * AT personality and a merged build simply registers both tables.
@@ -49,7 +49,7 @@ typedef struct {
 
 /*
  * Engine configuration. Subsystem-agnostic: the ESP-NOW app supplies
- * "+ENERR"/its code space, a future Matter app supplies "+MTERR"/its own,
+ * "+ENERR"/its code space, a second personality supplies its own prefix,
  * and the engine is unchanged either way.
  */
 typedef struct {

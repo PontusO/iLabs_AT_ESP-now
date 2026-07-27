@@ -61,10 +61,10 @@ int link_mgr_bring_up(link_mode_t mode, int channel)
         return 0;
     }
 
-    case LINK_MODE_MATTER:
+    case LINK_MODE_IP:
         /* Full WiFi + netif + IP path lands in Phase B3 (mirror of the
          * ESP-NOW path above, plus esp_netif_create_default_wifi_sta()). */
-        ESP_LOGE(TAG, "LINK_MODE_MATTER not implemented yet");
+        ESP_LOGE(TAG, "LINK_MODE_IP not implemented yet");
         return -1;
 
     default:

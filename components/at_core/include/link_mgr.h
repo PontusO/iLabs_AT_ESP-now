@@ -7,8 +7,9 @@
  * No AT subsystem brings WiFi/netif up or down inline. Everything goes
  * through link_mgr_bring_up(mode)/link_mgr_tear_down(), so a merged binary
  * has exactly one owner of "is the radio up, in which mode, on which
- * channel" that both ESP-NOW and Matter ask. ESP-NOW uses the minimal
- * WiFi-STA path (no netif/IP); Matter uses the full netif+IP path.
+ * channel" that every AT personality asks. Modes are named for what they
+ * do, not for who uses them: one personality needs the minimal WiFi-STA
+ * path (no netif/IP), another needs the full netif+IP path.
  *
  * Subsystem-private PHY tuning that has no meaning across personalities
  * (e.g. the ESP-NOW long-range protocol bit and per-peer rate) stays in
@@ -20,7 +21,7 @@
 typedef enum {
     LINK_MODE_NONE   = 0,   /* radio down                                  */
     LINK_MODE_ESPNOW = 1,   /* WiFi STA, no netif/IP (minimal path)        */
-    LINK_MODE_MATTER = 2,   /* WiFi STA + netif + IP (full path; Phase B3) */
+    LINK_MODE_IP     = 2,   /* WiFi STA + netif + IP (full path)           */
 } link_mode_t;
 
 /*

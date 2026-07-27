@@ -3,7 +3,7 @@
 
 # Shared AT-core: UART transport + subsystem-agnostic parser engine +
 # the single radio/link owner (link_mgr). Reused by every AT personality
-# (ESP-NOW today, Matter next).
+# (one personality per image; see the sibling firmware repos).
 #
 # Component names differ between ESP-IDF (C3/C6) and ESP8266_RTOS_SDK
 # (ESP8285/ESP8266): the UART driver, WiFi and netif all live in the

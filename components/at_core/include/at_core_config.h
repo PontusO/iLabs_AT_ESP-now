@@ -5,8 +5,8 @@
  * at_core_config.h
  *
  * Shared AT-core transport configuration: the UART port, pins, baud,
- * flow control and driver buffer sizes that every AT personality (ESP-NOW
- * today, Matter next) uses to talk to the host MCU.
+ * flow control and driver buffer sizes that every AT personality uses
+ * to talk to the host MCU.
  *
  * Subsystem-specific tunables (payload limits, timeouts, URC options,
  * identity strings) live in the owning app's config header, which

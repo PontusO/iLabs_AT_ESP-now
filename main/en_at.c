@@ -5,7 +5,7 @@
  * (at_parser). This file owns only the ESP-NOW command surface: the AT+EN...
  * handlers, their dispatch table, and the engine config (error-URC prefix
  * "+ENERR", code space, line length) that the ESP-NOW personality feeds to
- * the shared engine. A future Matter app is the mirror of this file.
+ * the shared engine. A second AT personality mirrors this file.
  *
  * Handler return convention (see at_parser.h):
  *   AT_R_OK    - engine prints "OK"
